@@ -1,0 +1,14 @@
+# ─────────────────────────────────────────────────────────────────
+# Exemple .env pour template-docker-compose.yml
+# Copier ce fichier en `.env` puis remplir.
+# ─────────────────────────────────────────────────────────────────
+
+COMPOSE_PROJECT_NAME=myapp
+APP_VERSION=1.0.0
+
+# ─── À placer dans des fichiers séparés (pas dans .env) ─────────
+# Créer les répertoires et fichiers de secrets :
+#   mkdir -p secrets
+#   echo "MotDePasseFort1!" > secrets/postgres_password.txt
+#   openssl rand -base64 48 > secrets/app_secret_key.txt
+#   chmod 600 secrets/*

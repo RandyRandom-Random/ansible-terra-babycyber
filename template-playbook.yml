@@ -1,0 +1,193 @@
+---
+# ═════════════════════════════════════════════════════════════════════
+#  TEMPLATE — Ansible Playbook
+# ─────────────────────────────────────────────────────────────────────
+#  Description : déployer une application X sur un groupe de serveurs.
+#  Usage       :
+#    ansible-galaxy collection install -r requirements.yml
+#    ansible-playbook -i inventory.ini template-playbook.yml         # dry-run
+#    ansible-playbook -i inventory.ini template-playbook.yml --check --diff
+#    ansible-playbook -i inventory.ini template-playbook.yml --tags config
+# ═════════════════════════════════════════════════════════════════════
+
+# ─── Play 1 — préparation des hôtes (idempotent, sans deps) ────────
+- name: "Setup base — user, dirs, packages"
+  hosts: webapp           # groupe défini dans inventory.ini
+  become: true            # sudo
+  gather_facts: true
+  any_errors_fatal: false
+  tags: [setup, always]
+
+  vars_files:
+    # Variables sensibles (à chiffrer avec ansible-vault) :
+    # - vault.yml         # ansible-vault encrypt vault.yml
+    - vars.yml            # variables non sensibles
+
+  vars:
+    # Variables fournies en clair ici peuvent être surchargées par
+    # group_vars/<groupe>.yml et host_vars/<hote>.yml
+    app_name: "monapp"
+    app_user: "{{ app_name }}"
+    app_group: "{{ app_name }}"
+    app_dir: "/opt/{{ app_name }}"
+    app_port: 8080
+    app_version: "1.0.0"
+
+  tasks:
+
+    - name: "Pré-requis : OS supporté"
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family in ['Debian', 'RedHat']
+        fail_msg: "OS non supporté : {{ ansible_os_family }}"
+
+    - name: "Créer le groupe applicatif"
+      ansible.builtin.group:
+        name: "{{ app_group }}"
+        system: true
+        state: present
+
+    - name: "Créer l'utilisateur applicatif (system, no shell)"
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        shell: /sbin/nologin
+        system: true
+        home: "{{ app_dir }}"
+        create_home: false
+        state: present
+
+    - name: "Créer l'arborescence de l'application"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0750"
+      loop:
+        - "{{ app_dir }}"
+        - "{{ app_dir }}/config"
+        - "{{ app_dir }}/data"
+        - "{{ app_dir }}/logs"
+
+    - name: "Installer les dépendances système"
+      ansible.builtin.package:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+      when: ansible_os_family == "Debian"
+
+
+# ─── Play 2 — déploiement applicatif ────────────────────────────────
+- name: "Deploy {{ app_name | default('app') }}"
+  hosts: webapp
+  become: true
+  gather_facts: false      # déjà collecté au play 1
+  vars_files:
+    - vars.yml
+
+  tasks:
+
+    # ── Configuration via template Jinja2 ───────────────────────────
+    - name: "Déployer la config (template)"
+      ansible.builtin.template:
+        src: "templates/app.conf.j2"
+        dest: "{{ app_dir }}/config/app.conf"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0640"
+        validate: "/usr/bin/app-config-check %s"  # optionnel
+      notify: restart {{ app_name }}
+      tags: [config]
+
+    # ── Copie d'un fichier statique ────────────────────────────────
+    - name: "Copier une licence ou un fichier statique"
+      ansible.builtin.copy:
+        src: "files/LICENSE.txt"
+        dest: "{{ app_dir }}/LICENSE.txt"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0644"
+      tags: [files]
+
+    # ── Lancer une commande (idempotent grâce à `creates`) ─────────
+    - name: "Initialiser la base (1ère exécution uniquement)"
+      ansible.builtin.command:
+        cmd: "/usr/bin/{{ app_name }} init"
+        creates: "{{ app_dir }}/data/.initialized"
+      become_user: "{{ app_user }}"
+      tags: [init]
+
+    # ── Déposer une unit systemd ───────────────────────────────────
+    - name: "Déployer le service systemd"
+      ansible.builtin.template:
+        src: templates/app.service.j2
+        dest: /etc/systemd/system/{{ app_name }}.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - reload systemd
+        - restart {{ app_name }}
+      tags: [systemd]
+
+    # ── Démarrer + activer ────────────────────────────────────────
+    - name: "Activer + démarrer le service"
+      ansible.builtin.systemd:
+        name: "{{ app_name }}"
+        enabled: true
+        state: started
+      tags: [service]
+
+    # ── Pare-feu (firewalld / ufw / nftables — adapter) ────────────
+    - name: "Ouvrir le port dans firewalld"
+      ansible.posix.firewalld:
+        port: "{{ app_port }}/tcp"
+        permanent: true
+        immediate: true
+        state: enabled
+      when: ansible_os_family == "RedHat"
+      tags: [firewall]
+
+    # ── Healthcheck post-deploy ────────────────────────────────────
+    - name: "Attendre que l'app réponde sur {{ app_port }}"
+      ansible.builtin.wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: "{{ app_port }}"
+        delay: 5
+        timeout: 60
+      tags: [verify]
+
+    - name: "Healthcheck HTTP"
+      ansible.builtin.uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ app_port }}/health"
+        status_code: [200]
+        timeout: 5
+      register: hc
+      retries: 6
+      delay: 10
+      until: hc.status == 200
+      tags: [verify]
+
+    # ── Résumé ─────────────────────────────────────────────────────
+    - name: "Récap du déploiement"
+      ansible.builtin.debug:
+        msg:
+          - "✓ {{ app_name }} v{{ app_version }} déployé sur {{ inventory_hostname }}"
+          - "  URL  : http://{{ ansible_default_ipv4.address }}:{{ app_port }}"
+          - "  Dir  : {{ app_dir }}"
+          - "  User : {{ app_user }}"
+      tags: [verify]
+
+  # ─── Handlers — déclenchés via `notify:` ─────────────────────────
+  handlers:
+
+    - name: "reload systemd"
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: "restart {{ app_name }}"
+      ansible.builtin.systemd:
+        name: "{{ app_name }}"
+        state: restarted

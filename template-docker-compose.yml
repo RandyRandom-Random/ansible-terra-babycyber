@@ -1,0 +1,155 @@
+# ═════════════════════════════════════════════════════════════════════
+#  TEMPLATE — Docker Compose (spec moderne, sans `version:`)
+# ─────────────────────────────────────────────────────────────────────
+#  Description : stack applicative type app + base + reverse proxy.
+#  Usage       :
+#    cp .env.example .env             # remplir les secrets
+#    docker compose up -d             # démarrer
+#    docker compose ps                # vérifier l'état (column "Health")
+#    docker compose logs -f app       # suivre les logs
+#    docker compose down -v           # tout supprimer (volumes compris !)
+# ═════════════════════════════════════════════════════════════════════
+
+# ─── Réseaux dédiés (pas de bridge par défaut) ─────────────────────
+networks:
+  frontend:                   # exposé au monde via le reverse proxy
+    name: ${COMPOSE_PROJECT_NAME:-app}_frontend
+    driver: bridge
+  backend:                    # privé, inter-container uniquement
+    name: ${COMPOSE_PROJECT_NAME:-app}_backend
+    driver: bridge
+    internal: true            # pas de sortie internet depuis ce réseau
+
+# ─── Volumes nommés (gérés par Docker, persistants) ────────────────
+volumes:
+  pg_data:
+    name: ${COMPOSE_PROJECT_NAME:-app}_pg_data
+  app_data:
+    name: ${COMPOSE_PROJECT_NAME:-app}_app_data
+
+# ─── Secrets (lus depuis fichier, pas de plain-text dans le YAML) ──
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  app_secret_key:
+    file: ./secrets/app_secret_key.txt
+
+# ─── Services ──────────────────────────────────────────────────────
+services:
+
+  # ─── Reverse proxy (Caddy : HTTPS auto, simple) ──────────────────
+  proxy:
+    image: caddy:2.8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-app}_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    networks:
+      - frontend
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ─── Application principale ──────────────────────────────────────
+  app:
+    image: ghcr.io/example/myapp:${APP_VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-app}_app
+    restart: unless-stopped
+    env_file:
+      - .env                          # vars non sensibles
+    environment:
+      - APP_ENV=production
+      - DATABASE_URL=postgresql://app:$(cat /run/secrets/postgres_password)@db:5432/appdb
+      - SECRET_KEY_FILE=/run/secrets/app_secret_key
+    secrets:
+      - postgres_password
+      - app_secret_key
+    volumes:
+      - app_data:/app/data
+      - ./app/config.yaml:/app/config.yaml:ro
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    labels:
+      - "com.example.app=myapp"
+      - "com.example.tier=app"
+
+  # ─── Base de données ─────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-app}_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=app
+      - POSTGRES_DB=appdb
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    secrets:
+      - postgres_password
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # ⚠️ Sécurité : ne PAS exposer 5432 vers l'hôte sauf besoin
+    # ports: ["5432:5432"]
+
+  # ─── Métriques (optionnel — exporter Prometheus) ─────────────────
+  exporter:
+    image: prom/postgres-exporter:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-app}_pg_exporter
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_NAME=postgresql://app@db:5432/appdb?sslmode=disable
+      - DATA_SOURCE_PASS_FILE=/run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    # Pas de ports exposés : Prometheus scrape en interne via le réseau backend

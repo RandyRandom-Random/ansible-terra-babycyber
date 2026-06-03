@@ -7,8 +7,6 @@ Espace de travail Ansible / Terraform / Docker.
 ```
 ansible-practice/
 ├── ansible-wazuh/                  # ⭐ Projet actif : SIEM Wazuh (cf. cahier des charges v1.0)
-├── exegol-forensic/                # Image Exegol pour forensic
-├── projet-kube/                    # Lab Kubernetes
 │
 ├── template-playbook.yml           # Template Ansible — 2 plays + handlers + tags + vault
 ├── template-docker-compose.yml     # Template Docker Compose (spec v2 moderne)
@@ -55,4 +53,3 @@ terraform init && terraform plan
 - Ansible Core ≥ 2.16 — `python3 -m pip install ansible-core`
 - Docker Engine ≥ 24 avec Compose v2 — `docker compose version`
 - Terraform ≥ 1.5 — <https://developer.hashicorp.com/terraform/install>
-# ansible-terra-babycyber

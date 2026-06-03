@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────────
+# Exemple de fichier de variables pour template-terraform.tf
+# Copier ce fichier en `terraform.tfvars` puis remplir.
+# Ne PAS commit terraform.tfvars (ajouter à .gitignore).
+# ─────────────────────────────────────────────────────────────────
+
+pm_api_url   = "https://proxmox.lan:8006/api2/json"
+pm_api_token = "terraform@pve!ci=00000000-0000-0000-0000-000000000000"
+
+target_node  = "pve"
+template_id  = 9000           # ID du template Debian/Alma à cloner
+
+vm_name      = "test-vm"
+vm_ip        = "192.168.50.100/24"
+vm_gateway   = "192.168.50.1"
+vlan_id      = 50
+
+vm_cores     = 2
+vm_ram       = 2048
+vm_disk_size = 20
+
+ci_user     = "admin_ansible"
+ci_password = "Quantum-7!Cactus-Susie$-Sausicce1"
+
+ssh_public_keys = [
+  "ssh-ed25519 AAAA... user@host"
+]
