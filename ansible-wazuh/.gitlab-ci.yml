@@ -13,6 +13,7 @@ stages:
   - lint
   - syntax
   - molecule
+  - provision
   - check
   - apply
   - smoke
@@ -122,6 +123,49 @@ molecule:wazuh_certs:
   extends: .molecule
   variables:
     ROLE_NAME: wazuh_certs
+
+# =============================================================================
+# STAGE 3bis — PROVISION (Terraform crée les 3 VMs sur Proxmox)
+# =============================================================================
+# Flux : Terraform (crée les VMs) → Ansible (configure) → GitLab (orchestre).
+# Variables CI requises (Settings → CI/CD → Variables) :
+#   PM_API_URL            ex: https://10.201.220.235:8006/api2/json
+#   PM_API_TOKEN_ID       ex: terraform-user@pve!terrafom-token
+#   PM_API_TOKEN_SECRET   (masquée)
+#   TF_VAR_ssh_public_keys  ex: ["ssh-ed25519 AAAA... ansible"]
+#   CI_VM_PASSWORD        mot de passe cloud-init admin_ansible (masquée)
+
+terraform:apply:
+  image:
+    name: hashicorp/terraform:1.9
+    entrypoint: [""]
+  tags: [vlan50]
+  stage: provision
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+  variables:
+    TF_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/soc-vms"
+    TF_VAR_pm_api_url: "${PM_API_URL}"
+    TF_VAR_pm_api_token: "${PM_API_TOKEN_ID}=${PM_API_TOKEN_SECRET}"
+    TF_VAR_ci_user: "admin_ansible"
+    TF_VAR_ci_password: "${CI_VM_PASSWORD}"
+  before_script:
+    - cd terraform
+    - |
+      terraform init \
+        -backend-config="address=${TF_ADDRESS}" \
+        -backend-config="lock_address=${TF_ADDRESS}/lock" \
+        -backend-config="unlock_address=${TF_ADDRESS}/lock" \
+        -backend-config="username=gitlab-ci-token" \
+        -backend-config="password=${CI_JOB_TOKEN}" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="retry_wait_min=5"
+  script:
+    - terraform validate
+    - terraform apply -auto-approve
+    - terraform output -json
 
 # =============================================================================
 # STAGE 4 — CHECK (dry-run sur prod)

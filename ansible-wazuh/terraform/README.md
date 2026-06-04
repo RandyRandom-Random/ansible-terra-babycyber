@@ -1,50 +1,46 @@
-# Terraform — Provisioning VM Monitoring
+# Terraform — Provisioning des VMs SOC
 
-Crée la VM `FRMONITOR01P` (192.168.50.11) sur Proxmox `aliexpress` via clone du template `alma10-template`.
+Crée les **3 VMs du VLAN 50** sur Proxmox (provider `bpg/proxmox`), par clone
+de la golden image AlmaLinux 10 :
 
-> **Note** : la VM `WazuhSiem` (192.168.50.10) est gérée par un autre state Terraform (côté Lucas), elle n'est **pas** dans ce dossier. Ce dossier ne gère **que** la VM Monitor pour ne pas conflicter.
+| VM | IP | vCPU | RAM | Disque |
+|----|----|------|-----|--------|
+| `FRWAZUH01P` (Wazuh) | 192.168.50.10 | 4 | 8 Go | 100 Go |
+| `FRPROM01P` (Prometheus) | 192.168.50.11 | 2 | 4 Go | 50 Go |
+| `FRGRAF01P` (Grafana) | 192.168.50.12 | 2 | 2 Go | 20 Go |
+
+Flux global : **Terraform (crée) → Ansible (configure) → GitLab CI (orchestre)**.
 
 ## Variables CI à définir dans GitLab
 
-`Settings → CI/CD → Variables` du projet `siem` :
+`Settings → CI/CD → Variables` du projet :
 
-| Clé                       | Type     | Protégée | Masquée | Valeur                                                        |
-|---------------------------|----------|----------|---------|---------------------------------------------------------------|
-| `PM_API_URL`              | Variable | ✓        | ✗       | `https://192.168.214.34:8006/api2/json`                       |
-| `PM_API_TOKEN_ID`         | Variable | ✓        | ✓       | `terraform@pve!ci` (à créer dans Proxmox)                     |
-| `PM_API_TOKEN_SECRET`     | Variable | ✓        | ✓       | secret du token                                                |
-| `TF_VAR_ssh_public_key`   | Variable | ✓        | ✓       | contenu de `~/.ssh/id_ed25519_ansible.pub`                    |
-| `SSH_PRIVATE_KEY`         | File     | ✓        | ✗       | contenu de `~/.ssh/id_ed25519_ansible` (clef privée)          |
+| Clé | Type | Masquée | Exemple |
+|-----|------|---------|---------|
+| `PM_API_URL` | Variable | ✗ | `https://10.201.220.235:8006/api2/json` |
+| `PM_API_TOKEN_ID` | Variable | ✓ | `terraform-user@pve!terrafom-token` |
+| `PM_API_TOKEN_SECRET` | Variable | ✓ | (secret du token) |
+| `TF_VAR_ssh_public_keys` | Variable | ✗ | `["ssh-ed25519 AAAA... ansible"]` |
+| `CI_VM_PASSWORD` | Variable | ✓ | mot de passe cloud-init `admin_ansible` |
+| `SSH_PRIVATE_KEY` | File | ✗ | contenu de `~/.ssh/id_ed25519_ansible` |
 
-### Créer le token Proxmox
-
-Sur le Proxmox `aliexpress` :
-```bash
-sudo pveum user add terraform@pve
-sudo pveum aclmod / -user terraform@pve -role Administrator
-sudo pveum user token add terraform@pve ci --privsep=0
-# → te donne le PM_API_TOKEN_SECRET (à copier dans la variable GitLab)
-```
+> Le runner GitLab doit être sur le réseau interne (tag `vlan50`) pour
+> atteindre l'API Proxmox et les VMs en SSH.
 
 ## Utilisation manuelle (hors CI)
 
 ```bash
 cd terraform/
-export TF_VAR_pm_api_url="https://192.168.214.34:8006/api2/json"
-export TF_VAR_pm_api_token_id="terraform@pve!ci"
-export TF_VAR_pm_api_token_secret="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-export TF_VAR_ssh_public_key="$(cat ~/.ssh/id_ed25519_ansible.pub)"
-
-# State local (pour tester) :
+cp terraform.tfvars.example terraform.tfvars   # puis renseigne les valeurs
 terraform init -backend=false
 terraform plan
 terraform apply
 ```
 
-## Réseau requis pour le runner
+Puis configuration Ansible :
 
-Le runner GitLab doit pouvoir atteindre :
-- `192.168.214.34:8006` (API Proxmox)
-- `192.168.50.10:22` et `192.168.50.11:22` (VMs en SSH, pour la phase Ansible)
-
-→ Le runner doit être hébergé sur le réseau interne `cyberbaby.lan` **ou** avoir une route vers le VLAN50 (via VPN OTERIA ou Tailscale).
+```bash
+cd ..
+make monitoring     # node_exporter + Prometheus + Grafana
+make wazuh          # serveur Wazuh
+```

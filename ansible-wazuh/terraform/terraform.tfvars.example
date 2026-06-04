@@ -1,0 +1,21 @@
+# Copier en terraform.tfvars et renseigner (terraform.tfvars est gitignoré).
+
+# API Proxmox
+pm_api_url   = "https://10.201.220.235:8006/api2/json"
+pm_api_token = "terraform-user@pve!terrafom-token=<SECRET_DU_TOKEN>"
+
+# Cloud-init
+ci_user     = "admin_ansible"
+ci_password = "<MOT_DE_PASSE_CLOUD_INIT>"
+
+# Node Proxmox + golden image
+target_node = "aliexpress"
+template_id = 9003
+
+# Clés SSH publiques injectées dans les VMs
+ssh_public_keys = [
+  "ssh-ed25519 AAAA...remplace-par-ta-cle... ansible",
+]
+
+dns_servers = ["192.168.50.1"]
+dns_domain  = "cyberbaby.lab"

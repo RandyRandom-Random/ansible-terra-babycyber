@@ -1,11 +1,19 @@
-# VM Monitoring (Prometheus + Grafana)
-# Aligné sur la structure d'infta/terraform-cyberbaby (provider bpg/proxmox).
-# Cette VM est gérée par CE repo (pas par terraform-cyberbaby) car c'est un
-# ajout spécifique au projet SIEM/Wazuh. La VM WazuhSiem reste gérée par
-# infta/terraform-cyberbaby (state séparé).
+# VMs SOC (Wazuh + Prometheus + Grafana) — provider bpg/proxmox.
+# Les 3 VMs du VLAN 50 sont gérées par CE repo : Terraform les crée, puis
+# Ansible les configure (flux Terraform → Ansible → GitLab CI).
 
 locals {
   monitor_vms = {
+    "FRWAZUH01P" = {
+      vlan   = 50
+      ram    = 8192
+      cores  = 4
+      disk   = 100
+      ip     = "192.168.50.10/24"
+      gw     = "192.168.50.1"
+      dns    = ["192.168.50.1"]
+      domain = "cyberbaby.lab"
+    }
     "FRPROM01P" = {
       vlan   = 50
       ram    = 4096
