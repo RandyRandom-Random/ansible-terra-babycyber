@@ -27,7 +27,7 @@
         "textMode": "value_and_name"
       },
       "targets": [
-        { "expr": "up{job=\"node-gitlab\"}", "legendFormat": "VM", "refId": "A" },
+        { "expr": "up{host=\"gitlab.infra.lan\"}", "legendFormat": "VM", "refId": "A" },
         { "expr": "up{job=\"gitlab-app\"}", "legendFormat": "App", "refId": "B" }
       ],
       "title": "GitLab health",
@@ -52,7 +52,7 @@
         "textMode": "value_and_name"
       },
       "targets": [
-        { "expr": "100 - (avg(rate(node_cpu_seconds_total{job=\"node-gitlab\", mode=\"idle\"}[5m])) * 100)", "legendFormat": "CPU", "refId": "A" }
+        { "expr": "100 - (avg(rate(node_cpu_seconds_total{host=\"gitlab.infra.lan\", mode=\"idle\"}[5m])) * 100)", "legendFormat": "CPU", "refId": "A" }
       ],
       "title": "CPU",
       "type": "stat"
@@ -76,7 +76,7 @@
         "textMode": "value_and_name"
       },
       "targets": [
-        { "expr": "(1 - (node_memory_MemAvailable_bytes{job=\"node-gitlab\"} / node_memory_MemTotal_bytes{job=\"node-gitlab\"})) * 100", "legendFormat": "RAM", "refId": "A" }
+        { "expr": "(1 - (node_memory_MemAvailable_bytes{host=\"gitlab.infra.lan\"} / node_memory_MemTotal_bytes{host=\"gitlab.infra.lan\"})) * 100", "legendFormat": "RAM", "refId": "A" }
       ],
       "title": "Memory",
       "type": "stat"
@@ -100,7 +100,7 @@
         "textMode": "value_and_name"
       },
       "targets": [
-        { "expr": "100 - ((node_filesystem_avail_bytes{job=\"node-gitlab\", mountpoint=\"/\"} * 100) / node_filesystem_size_bytes{job=\"node-gitlab\", mountpoint=\"/\"})", "legendFormat": "Disk /", "refId": "A" }
+        { "expr": "100 - ((node_filesystem_avail_bytes{host=\"gitlab.infra.lan\", mountpoint=\"/\"} * 100) / node_filesystem_size_bytes{host=\"gitlab.infra.lan\", mountpoint=\"/\"})", "legendFormat": "Disk /", "refId": "A" }
       ],
       "title": "Disk /",
       "type": "stat"
@@ -115,8 +115,8 @@
         "tooltip": { "mode": "single" }
       },
       "targets": [
-        { "expr": "100 - (avg(rate(node_cpu_seconds_total{job=\"node-gitlab\", mode=\"idle\"}[5m])) * 100)", "legendFormat": "CPU %", "refId": "A" },
-        { "expr": "(1 - (node_memory_MemAvailable_bytes{job=\"node-gitlab\"} / node_memory_MemTotal_bytes{job=\"node-gitlab\"})) * 100", "legendFormat": "RAM %", "refId": "B" }
+        { "expr": "100 - (avg(rate(node_cpu_seconds_total{host=\"gitlab.infra.lan\", mode=\"idle\"}[5m])) * 100)", "legendFormat": "CPU %", "refId": "A" },
+        { "expr": "(1 - (node_memory_MemAvailable_bytes{host=\"gitlab.infra.lan\"} / node_memory_MemTotal_bytes{host=\"gitlab.infra.lan\"})) * 100", "legendFormat": "RAM %", "refId": "B" }
       ],
       "title": "CPU & RAM (timeseries)",
       "type": "timeseries"
@@ -131,8 +131,8 @@
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
-        { "expr": "rate(node_network_receive_bytes_total{job=\"node-gitlab\", device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} rx", "refId": "A" },
-        { "expr": "rate(node_network_transmit_bytes_total{job=\"node-gitlab\", device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} tx", "refId": "B" }
+        { "expr": "rate(node_network_receive_bytes_total{host=\"gitlab.infra.lan\", device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} rx", "refId": "A" },
+        { "expr": "rate(node_network_transmit_bytes_total{host=\"gitlab.infra.lan\", device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} tx", "refId": "B" }
       ],
       "title": "Network throughput",
       "type": "timeseries"
@@ -200,7 +200,7 @@
         "textMode": "value_and_name"
       },
       "targets": [
-        { "expr": "time() - node_boot_time_seconds{job=\"node-gitlab\"}", "legendFormat": "uptime", "refId": "A" }
+        { "expr": "time() - node_boot_time_seconds{host=\"gitlab.infra.lan\"}", "legendFormat": "uptime", "refId": "A" }
       ],
       "title": "VM Uptime",
       "type": "stat"

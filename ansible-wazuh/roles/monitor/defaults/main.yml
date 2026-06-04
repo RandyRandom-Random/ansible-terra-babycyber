@@ -1,8 +1,25 @@
 ---
 monitor_dir: "/opt/monitor"
+
+# Composant déployé par CETTE exécution : "prometheus" ou "grafana".
+# Surchargé par les playbooks 50_prometheus.yml / 60_grafana.yml.
+monitor_component: "prometheus"
+
+# Adresses des VMs monitoring (3 VMs séparées)
+prometheus_ip: "192.168.50.11"
+grafana_ip: "192.168.50.12"
+wazuh_target_ip: "192.168.50.10"
+
+# URL utilisée par Grafana pour interroger Prometheus (cross-VM)
+prometheus_url: "http://{{ prometheus_ip }}:9090"
+
 grafana_admin_user: "admin"
 grafana_admin_password: "GrafanaAdmin1!"
-wazuh_target_ip: "192.168.50.10"
 prometheus_retention: "30d"
+
+# Job GitLab applicatif (/-/metrics) — optionnel
+gitlab_app_ip: "192.168.20.10"
+gitlab_app_enabled: true
+
 soc_timezone: "Europe/Paris"
 soc_manage_firewalld: true

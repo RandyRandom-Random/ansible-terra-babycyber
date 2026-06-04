@@ -1,7 +1,7 @@
 ---
-# stack.yml — Démarrage de la stack conteneurisée
+# stack.yml — Démarrage du conteneur (Prometheus OU Grafana selon la VM)
 # Tags : monitor, stack
-# Le docker-compose monte Prometheus + Grafana + Node Exporter.
+# Le docker-compose ne monte que le composant {{ monitor_component }}.
 # Étape commune : appelée aussi bien par le playbook Prometheus que Grafana.
 
 - name: Deploy docker-compose.yml
@@ -26,8 +26,12 @@
     chdir: "{{ monitor_dir }}"
   changed_when: true
 
-- name: Display access info
+- name: Display access info (Prometheus)
   ansible.builtin.debug:
-    msg:
-      - "Grafana    : http://192.168.50.11:3000  (admin / {{ grafana_admin_password }})"
-      - "Prometheus : http://192.168.50.11:9090"
+    msg: "Prometheus : http://{{ prometheus_ip }}:9090"
+  when: monitor_component == 'prometheus'
+
+- name: Display access info (Grafana)
+  ansible.builtin.debug:
+    msg: "Grafana : http://{{ grafana_ip }}:3000  (admin / {{ grafana_admin_password }})"
+  when: monitor_component == 'grafana'

@@ -7,6 +7,7 @@
 - import_playbook: 20_wazuh_server.yml
 - import_playbook: 30_wazuh_agents.yml
 - import_playbook: 40_integrations.yml
+- import_playbook: 45_node_exporter.yml
 - import_playbook: 50_prometheus.yml
 - import_playbook: 60_grafana.yml
 - import_playbook: 99_smoke_tests.yml

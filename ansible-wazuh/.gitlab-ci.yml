@@ -154,6 +154,21 @@ apply:
     - source /tmp/venv/bin/activate
     - ansible-playbook playbooks/site.yml -i inventories/prod/hosts.yml
 
+apply:node_exporter:
+  extends: .ansible-base
+  stage: apply
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - roles/node_exporter/**/*
+        - playbooks/45_node_exporter.yml
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+  script:
+    - source /tmp/venv/bin/activate
+    - ansible-playbook playbooks/45_node_exporter.yml -i inventories/prod/hosts.yml
+
 apply:prometheus:
   extends: .ansible-base
   stage: apply
@@ -185,7 +200,7 @@ apply:grafana:
       when: manual
   environment:
     name: monitoring-grafana
-    url: http://192.168.50.11:3000
+    url: http://192.168.50.12:3000
   script:
     - source /tmp/venv/bin/activate
     - ansible-playbook playbooks/60_grafana.yml -i inventories/prod/hosts.yml

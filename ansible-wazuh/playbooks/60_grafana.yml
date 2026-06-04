@@ -1,30 +1,30 @@
 ---
-# 60_grafana.yml — Déploiement de GRAFANA (visualisation / dashboards)
+# 60_grafana.yml — Déploiement de GRAFANA (VM dédiée grafana.sec.lan)
 # Tags : grafana
 # Usage : ansible-playbook playbooks/60_grafana.yml
 #
-# Grafana lit les données de Prometheus (datasource auto-provisionnée) et les
-# affiche dans des dashboards. Il écoute sur le port 3000. Deux dashboards sont
-# fournis automatiquement : VMs Overview et GitLab Overview.
-# Étapes : prérequis OS/Docker → provisioning datasource + dashboards → conteneur.
+# Grafana lit la VM Prometheus (datasource auto-provisionnée vers
+# http://192.168.50.11:9090) et affiche les dashboards. Écoute sur le port 3000.
 
 - name: Grafana — visualisation / dashboards
-  hosts: monitor
+  hosts: grafana_server
   become: true
   gather_facts: true
   tags: [grafana]
+  vars:
+    monitor_component: grafana
   tasks:
     - name: Prérequis communs (OS + Docker + firewall)
       ansible.builtin.include_role:
         name: monitor
         tasks_from: setup.yml
 
-    - name: Provisioning Grafana (datasource + dashboards)
+    - name: Provisioning Grafana (datasource Prometheus + dashboards)
       ansible.builtin.include_role:
         name: monitor
         tasks_from: grafana.yml
 
-    - name: Démarrage de la stack conteneurisée
+    - name: Démarrage du conteneur Grafana
       ansible.builtin.include_role:
         name: monitor
         tasks_from: stack.yml

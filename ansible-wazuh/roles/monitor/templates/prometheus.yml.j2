@@ -7,33 +7,26 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'node-monitor'
+  # Node Exporter de TOUS les hôtes du groupe `node_exporters`.
+  # Généré automatiquement depuis l'inventaire : chaque agent ajouté à
+  # ce groupe apparaît dans le dashboard sans modifier ce fichier.
+  - job_name: 'node'
     static_configs:
-      - targets: ['192.168.50.11:9100']
+{% for host in groups['node_exporters'] | sort %}
+      - targets: ['{{ hostvars[host].ansible_host }}:9100']
         labels:
-          host: 'FRMONITOR01P'
+          host: '{{ host }}'
+{% endfor %}
 
-  - job_name: 'node-wazuh'
-    static_configs:
-      - targets: ['{{ wazuh_target_ip }}:9100']
-        labels:
-          host: 'WazuhSiem'
-
-  - job_name: 'node-gitlab'
-    static_configs:
-      - targets: ['192.168.20.10:9100']
-        labels:
-          host: 'FRGITLAB01P'
-
-  # Métriques applicatives GitLab Omnibus.
-  # Pré-requis :
-  #   - /-/metrics activé dans GitLab Omnibus
-  #   - 192.168.50.11 dans la monitoring IP allowlist
-  #     (Admin → Settings → Network → Outbound / Health-check)
+{% if gitlab_app_enabled | bool %}
+  # Métriques applicatives GitLab Omnibus (/-/metrics).
+  # Pré-requis : /-/metrics activé + IP Prometheus ({{ prometheus_ip }})
+  # dans la monitoring IP allowlist (Admin → Settings → Network).
   - job_name: 'gitlab-app'
     metrics_path: '/-/metrics'
     scheme: http
     static_configs:
-      - targets: ['192.168.20.10:80']
+      - targets: ['{{ gitlab_app_ip }}:80']
         labels:
-          host: 'FRGITLAB01P'
+          host: 'gitlab.infra.lan'
+{% endif %}

@@ -6,11 +6,22 @@
 
 locals {
   monitor_vms = {
-    "FRMONITOR01P" = {
+    "FRPROM01P" = {
+      vlan   = 50
+      ram    = 4096
+      cores  = 2
+      disk   = 50
+      ip     = "192.168.50.11/24"
+      gw     = "192.168.50.1"
+      dns    = ["192.168.50.1"]
+      domain = "cyberbaby.lab"
+    }
+    "FRGRAF01P" = {
       vlan   = 50
       ram    = 2048
       cores  = 2
-      ip     = "192.168.50.11/24"
+      disk   = 20
+      ip     = "192.168.50.12/24"
       gw     = "192.168.50.1"
       dns    = ["192.168.50.1"]
       domain = "cyberbaby.lab"
@@ -47,7 +58,7 @@ resource "proxmox_virtual_environment_vm" "monitor" {
   disk {
     datastore_id = "local"
     interface    = "scsi0"
-    size         = 20
+    size         = each.value.disk
   }
 
   network_device {

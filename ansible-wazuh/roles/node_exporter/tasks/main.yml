@@ -1,0 +1,73 @@
+---
+# Déploie node_exporter (binaire + systemd) sur Debian ET AlmaLinux.
+# Objectif : exposer les métriques système sur le port 9100 pour que la VM
+# Prometheus les scrape — chaque hôte ajouté au groupe `node_exporters`
+# remonte automatiquement dans le dashboard Grafana.
+
+- name: Créer l'utilisateur système node_exporter
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Vérifier la version déjà installée (le cas échéant)
+  ansible.builtin.command: "{{ node_exporter_bin }} --version"
+  register: ne_installed
+  changed_when: false
+  failed_when: false
+
+- name: Télécharger et extraire node_exporter
+  ansible.builtin.unarchive:
+    src: "{{ node_exporter_download_url }}"
+    dest: /tmp
+    remote_src: true
+    owner: root
+    group: root
+  register: ne_download
+  retries: 3
+  delay: 10
+  until: ne_download is succeeded
+  when: node_exporter_version not in (ne_installed.stdout | default(''))
+
+- name: Installer le binaire node_exporter
+  ansible.builtin.copy:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}/node_exporter"
+    dest: "{{ node_exporter_bin }}"
+    mode: "0755"
+    owner: root
+    group: root
+    remote_src: true
+  when: node_exporter_version not in (ne_installed.stdout | default(''))
+  notify: restart node_exporter
+
+- name: Déployer l'unité systemd node_exporter
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    mode: "0644"
+  notify: restart node_exporter
+
+- name: Activer et démarrer node_exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# ─── Firewall : ouvrir 9100 pour la VM Prometheus ──────────────
+- name: Ouvrir 9100 (firewalld — AlmaLinux/RHEL)
+  ansible.posix.firewalld:
+    rich_rule: "rule family=ipv4 source address={{ node_exporter_allow_from }}/32 port port={{ node_exporter_port }} protocol=tcp accept"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: ansible_os_family == "RedHat"
+  failed_when: false
+
+- name: Ouvrir 9100 (nftables — Debian, best-effort)
+  ansible.builtin.command: >-
+    nft add rule inet filter input ip saddr {{ node_exporter_allow_from }} tcp dport {{ node_exporter_port }} accept
+  when: ansible_os_family == "Debian"
+  changed_when: false
+  failed_when: false

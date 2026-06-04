@@ -26,7 +26,7 @@
         "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
         "textMode": "value_and_name"
       },
-      "targets": [{ "expr": "up{job=~\"node-.*\", host=~\"$host\"}", "legendFormat": "{{host}}", "refId": "A" }],
+      "targets": [{ "expr": "up{job=\"node\", host=~\"$host\"}", "legendFormat": "{{host}}", "refId": "A" }],
       "title": "Hosts UP / DOWN",
       "type": "stat"
     },

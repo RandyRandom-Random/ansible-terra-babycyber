@@ -1,0 +1,15 @@
+---
+# 45_node_exporter.yml — Déploie node_exporter sur TOUS les agents
+# Tags : node_exporter
+# Usage : ansible-playbook playbooks/45_node_exporter.yml
+#
+# Chaque hôte du groupe `node_exporters` expose ses métriques sur le port 9100.
+# La VM Prometheus les scrape → tous les agents apparaissent dans le dashboard.
+
+- name: node_exporter sur tous les hôtes monitorés
+  hosts: node_exporters
+  become: true
+  gather_facts: true
+  tags: [node_exporter]
+  roles:
+    - role: node_exporter
