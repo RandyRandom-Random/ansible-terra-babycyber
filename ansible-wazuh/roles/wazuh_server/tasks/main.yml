@@ -1,0 +1,120 @@
+---
+# --- Base OS Setup ---
+
+- name: Set system timezone
+  ansible.builtin.command:
+    cmd: timedatectl set-timezone {{ soc_timezone }}
+  changed_when: false
+
+- name: Enable CRB repository (AlmaLinux 10)
+  ansible.builtin.command:
+    cmd: dnf config-manager --set-enabled crb
+  changed_when: false
+
+- name: Force fallback DNS for Docker pulls
+  ansible.builtin.lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver 8.8.8.8"
+    insertbefore: BOF
+    state: present
+
+- name: Install base packages
+  ansible.builtin.command:
+    cmd: dnf install -y curl wget git unzip firewalld python3 tar
+  changed_when: true
+
+- name: Increase vm.max_map_count for Elasticsearch/OpenSearch
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: '262144'
+    state: present
+    reload: true
+
+- name: Ensure firewalld is started
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when: soc_manage_firewalld | bool
+
+# --- Firewall ---
+
+- name: Open Wazuh ports in firewalld
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "443/tcp"     # Dashboard HTTPS
+    - "1514/tcp"    # Agent communication
+    - "1515/tcp"    # Agent enrollment
+    - "514/udp"     # Syslog
+    - "55000/tcp"   # Wazuh API
+  when: soc_manage_firewalld | bool
+
+# --- Docker ---
+
+- name: Add Docker CE repository
+  ansible.builtin.command:
+    cmd: dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+  changed_when: false
+
+- name: Install Docker CE
+  ansible.builtin.command:
+    cmd: dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  changed_when: true
+
+- name: Enable and start Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+# --- Wazuh Stack ---
+
+- name: Clone Wazuh Docker repository
+  ansible.builtin.git:
+    repo: https://github.com/wazuh/wazuh-docker.git
+    dest: "{{ wazuh_dir }}"
+    version: "{{ wazuh_version }}"
+    force: true
+
+- name: Check if certs already generated
+  ansible.builtin.stat:
+    path: "{{ wazuh_dir }}/single-node/config/wazuh_indexer_ssl_certs/root-ca.pem"
+  register: certs_check
+
+- name: Generate Wazuh SSL certificates
+  ansible.builtin.command:
+    cmd: docker compose -f generate-indexer-certs.yml run --rm generator
+    chdir: "{{ wazuh_dir }}/single-node"
+  when: not certs_check.stat.exists
+  register: cert_gen
+  until: cert_gen.rc == 0
+  retries: 3
+  delay: 10
+  changed_when: true
+
+- name: Pull Wazuh Docker images
+  ansible.builtin.command:
+    cmd: docker compose pull
+    chdir: "{{ wazuh_dir }}/single-node"
+  register: docker_pull
+  until: docker_pull.rc == 0
+  retries: 5
+  delay: 15
+  changed_when: false
+
+- name: Start Wazuh stack
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ wazuh_dir }}/single-node"
+  changed_when: true
+
+- name: Display access info
+  ansible.builtin.debug:
+    msg:
+      - "Wazuh deployed on https://192.168.50.10"
+      - "Default login: admin / SecretPassword1!"
+      - "Wait 2-3 min for full initialization"

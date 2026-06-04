@@ -1,0 +1,23 @@
+---
+- name: Provisionner le datasource OpenSearch (Wazuh indexer)
+  community.grafana.grafana_datasource:
+    grafana_url: "{{ grafana_url }}"
+    url_username: "{{ grafana_admin_user }}"
+    url_password: "{{ grafana_admin_password }}"
+    name: "Wazuh-Indexer"
+    ds_type: "opensearch"
+    ds_url: "{{ wazuh_indexer_url }}"
+    user: "{{ wazuh_indexer_user }}"
+    password: "{{ wazuh_indexer_password }}"
+    access: "proxy"
+    is_default: false
+    additional_json_data:
+      database: "{{ wazuh_indexer_index }}"
+      timeField: "@timestamp"
+      version: "2.10.0"
+      flavor: "opensearch"
+      tlsSkipVerify: true
+    validate_certs: false
+  delegate_to: localhost
+  no_log: true
+  tags: [integrations, grafana]

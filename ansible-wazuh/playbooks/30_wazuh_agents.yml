@@ -1,0 +1,49 @@
+---
+# 30_wazuh_agents.yml — Déploie les agents Wazuh sur tout le parc
+# Tags : agents
+# Usage : ansible-playbook playbooks/30_wazuh_agents.yml [--limit vlan_infra]
+
+- name: Récupérer le mot de passe d'enrollment depuis Vault
+  hosts: localhost
+  gather_facts: false
+  tags: [agents, prepare]
+  tasks:
+    - name: Lookup enrollment password
+      ansible.builtin.set_fact:
+        enrollment_pwd: "{{ lookup('community.hashi_vault.hashi_vault', vault_secret_base + '/enrollment:password url=' + vault_addr) }}"
+      no_log: true
+      when: vault_addr is defined
+
+- name: Déploiement agents Wazuh — Debian (VLAN 20, 30, 40)
+  hosts: wazuh_agents:!firewalls
+  gather_facts: true
+  serial: 5             # batch de 5 pour éviter le saturation du manager
+  tags: [agents, deploy]
+
+  vars:
+    wazuh_enrollment_password: "{{ hostvars['localhost']['enrollment_pwd'] | default('') }}"
+
+  roles:
+    - role: common_hardening
+      tags: [hardening]
+
+    - role: wazuh_agent
+      tags: [agent]
+
+  post_tasks:
+    - name: Vérifier l'enregistrement du nouvel agent côté manager
+      ansible.builtin.command:
+        cmd: "docker exec single-node-wazuh.manager-1 /var/ossec/bin/manage_agents -l"
+      delegate_to: "{{ groups['wazuh_server'][0] }}"
+      register: agent_list
+      changed_when: false
+      tags: [verify]
+
+    - name: Assert que l'agent apparaît dans la liste manager
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname_short in agent_list.stdout
+        success_msg: "{{ inventory_hostname }} : agent enregistré côté manager ✓"
+        fail_msg: "{{ inventory_hostname }} : agent NON enregistré côté manager"
+      when: agent_list.stdout is defined
+      tags: [verify]

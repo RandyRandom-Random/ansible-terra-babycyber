@@ -1,0 +1,23 @@
+---
+# ─── Paths ────────────────────────────────────────────────────
+certs_dir: /etc/wazuh/certs
+certs_owner: root
+certs_group: root
+certs_mode: "0640"
+
+# ─── Root CA (5 ans, 4096 bits) ───────────────────────────────
+ca_common_name: "Wazuh Internal Root CA"
+ca_key_size: 4096
+ca_validity_days: 1825   # 5 ans
+ca_country: "FR"
+ca_organization: "Cyberbaby Lab"
+
+# ─── Feuilles (1 an, rotation auto à J-30) ────────────────────
+leaf_validity_days: 365
+leaf_renew_threshold_days: 30
+leaf_key_size: 2048
+leaf_common_names:
+  - { name: "wazuh.indexer",   san: ["DNS:wazuh.indexer","DNS:wazuh.sec.lan","IP:192.168.50.10"] }
+  - { name: "wazuh.manager",   san: ["DNS:wazuh.manager","DNS:wazuh.sec.lan","IP:192.168.50.10"] }
+  - { name: "wazuh.dashboard", san: ["DNS:wazuh.dashboard","DNS:wazuh.sec.lan","IP:192.168.50.10"] }
+  - { name: "admin",           san: ["DNS:admin"] }

@@ -1,0 +1,28 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 160
+    level: warning
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: false
+
+ignore: |
+  .ansible_facts_cache/
+  collections/
+  .terraform/
+  molecule/*/.cache/

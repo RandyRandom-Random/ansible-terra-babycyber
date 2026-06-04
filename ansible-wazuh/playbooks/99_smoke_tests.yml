@@ -1,0 +1,106 @@
+---
+# 99_smoke_tests.yml — Vérifie l'état post-déploiement (§5.8)
+# Tags : verify, smoke
+# Usage : ansible-playbook playbooks/99_smoke_tests.yml
+
+- name: Smoke tests — Wazuh manager
+  hosts: wazuh_server
+  gather_facts: false
+  tags: [verify, smoke]
+
+  tasks:
+    - name: Containers Wazuh tous up
+      ansible.builtin.command:
+        cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} ps --format '{{ '{{' }}.Names{{ '}}' }}|{{ '{{' }}.Status{{ '}}' }}'"
+      register: containers
+      changed_when: false
+
+    - name: Assert que tous les containers attendus sont up
+      ansible.builtin.assert:
+        that:
+          - "'single-node-wazuh.indexer-1' in containers.stdout"
+          - "'single-node-wazuh.manager-1' in containers.stdout"
+          - "'single-node-wazuh.dashboard-1' in containers.stdout"
+        success_msg: "Stack Wazuh OK"
+
+    - name: Test API indexer (port 9200)
+      ansible.builtin.uri:
+        url: "https://localhost:9200/_cluster/health"
+        user: admin
+        password: "{{ vault_wazuh_indexer_admin_password | default('SecretPassword') }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: idx_health
+
+    - name: Assert que le cluster est green ou yellow
+      ansible.builtin.assert:
+        that:
+          - idx_health.json.status in ['green', 'yellow']
+
+    - name: Test dashboard HTTPS (port 443)
+      ansible.builtin.uri:
+        url: "https://{{ wazuh_manager_ip }}/"
+        validate_certs: false
+        status_code: [200, 302]
+      delegate_to: localhost
+
+    - name: Test API Wazuh (port 55000)
+      ansible.builtin.uri:
+        url: "https://{{ wazuh_manager_ip }}:{{ wazuh_api_port }}/"
+        validate_certs: false
+        status_code: [200, 401]    # 401 sans token, normal
+      delegate_to: localhost
+
+
+- name: Smoke tests — agents
+  hosts: wazuh_agents:!firewalls
+  gather_facts: false
+  tags: [verify, smoke, agents]
+
+  tasks:
+    - name: Service wazuh-agent actif
+      ansible.builtin.command:
+        cmd: systemctl is-active wazuh-agent
+      register: agent_active
+      changed_when: false
+
+    - name: Assert agent connecté
+      ansible.builtin.assert:
+        that:
+          - agent_active.stdout == "active"
+
+    - name: État de connexion au manager
+      ansible.builtin.command:
+        cmd: /var/ossec/bin/wazuh-control status
+      register: agent_status
+      changed_when: false
+
+    - name: Assert que tous les daemons agent sont running
+      ansible.builtin.assert:
+        that:
+          - "'wazuh-agentd is running' in agent_status.stdout"
+
+
+- name: Smoke tests — pfSense rules
+  hosts: wazuh_server
+  gather_facts: false
+  tags: [verify, smoke, firewall]
+
+  tasks:
+    - name: Scan nmap depuis l'extérieur (VLAN 30) — seuls 1514/1515 doivent passer
+      ansible.builtin.command:
+        cmd: nmap -Pn -p 22,443,1514,1515,9200,5601,55000 {{ wazuh_manager_ip }}
+      delegate_to: "{{ groups['vlan_runtime'] | first | default(inventory_hostname) }}"
+      register: scan
+      changed_when: false
+      failed_when: false
+
+    - name: Assert ports admin fermés depuis VLAN 30
+      ansible.builtin.assert:
+        that:
+          - "'9200/tcp open' not in scan.stdout"
+          - "'5601/tcp open' not in scan.stdout"
+          - "'55000/tcp open' not in scan.stdout"
+        fail_msg: "Drift firewall : un port admin est exposé depuis VLAN 30 !"
+      when: scan.stdout is defined and groups['vlan_runtime'] | length > 0

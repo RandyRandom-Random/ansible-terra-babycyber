@@ -1,0 +1,16 @@
+---
+- name: Déployer la config nftables (deny-by-default + SSH + ports applicatifs)
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    owner: root
+    group: root
+    mode: "0640"
+    validate: "nft -c -f %s"
+  notify: reload nftables
+
+- name: Activer et démarrer nftables
+  ansible.builtin.systemd:
+    name: nftables
+    enabled: true
+    state: started

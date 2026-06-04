@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-monitor'
+    static_configs:
+      - targets: ['192.168.50.11:9100']
+        labels:
+          host: 'FRMONITOR01P'
+
+  - job_name: 'node-wazuh'
+    static_configs:
+      - targets: ['{{ wazuh_target_ip }}:9100']
+        labels:
+          host: 'WazuhSiem'
+
+  - job_name: 'node-gitlab'
+    static_configs:
+      - targets: ['192.168.20.10:9100']
+        labels:
+          host: 'FRGITLAB01P'
+
+  # Métriques applicatives GitLab Omnibus.
+  # Pré-requis :
+  #   - /-/metrics activé dans GitLab Omnibus
+  #   - 192.168.50.11 dans la monitoring IP allowlist
+  #     (Admin → Settings → Network → Outbound / Health-check)
+  - job_name: 'gitlab-app'
+    metrics_path: '/-/metrics'
+    scheme: http
+    static_configs:
+      - targets: ['192.168.20.10:80']
+        labels:
+          host: 'FRGITLAB01P'

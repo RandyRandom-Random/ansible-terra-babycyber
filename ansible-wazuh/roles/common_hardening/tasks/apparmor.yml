@@ -1,0 +1,33 @@
+---
+- name: Vérifier qu'AppArmor est installé
+  ansible.builtin.command: aa-status --enabled
+  register: aa_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Activer AppArmor au boot (GRUB)
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX="'
+    line: 'GRUB_CMDLINE_LINUX="apparmor=1 security=apparmor"'
+    backrefs: false
+  register: grub_changed
+  when: aa_status.rc != 0
+
+- name: Régénérer la config GRUB
+  ansible.builtin.command: update-grub
+  when: grub_changed is changed
+  changed_when: true
+
+- name: S'assurer qu'AppArmor est démarré et activé
+  ansible.builtin.systemd:
+    name: apparmor
+    enabled: true
+    state: started
+
+- name: Passer tous les profils existants en enforce
+  ansible.builtin.command: aa-enforce /etc/apparmor.d/*
+  register: aa_enforce
+  changed_when: "'is now in enforce mode' in aa_enforce.stdout"
+  failed_when: false

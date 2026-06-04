@@ -1,0 +1,12 @@
+---
+# prometheus.yml — Configuration Prometheus (collecte de métriques)
+# Tags : monitor, prometheus
+# Prometheus scrape les node_exporter des VMs (CPU/RAM/disque/réseau)
+# et expose le tout sur le port 9090.
+
+- name: Deploy prometheus.yml (scrape config)
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ monitor_dir }}/prometheus.yml"
+    mode: "0644"
+  notify: reload prometheus

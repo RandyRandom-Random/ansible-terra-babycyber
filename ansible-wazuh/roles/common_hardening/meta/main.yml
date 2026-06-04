@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  author: Infra/Sec
+  description: >
+    Durcissement OS Debian 12 : sysctl, SSH, AppArmor enforce, nftables,
+    auditd CIS-L1, umask 027 (cf. §7.2 du cahier des charges).
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+
+dependencies: []

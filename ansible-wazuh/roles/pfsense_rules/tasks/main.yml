@@ -1,0 +1,66 @@
+---
+# Rôle pfsense_rules — utilise la collection pfsensible.core.
+# Le runner Ansible doit avoir un accès au LAN MGMT (192.168.10.0/24).
+
+- name: Vérifier que le token API pfSense est défini
+  ansible.builtin.assert:
+    that:
+      - pfsense_api_token | length > 0
+    fail_msg: >
+      pfsense_api_token est vide. Doit être injecté par le rôle
+      vault_integration ou via la variable CI TF_VAR_pfsense_token.
+  tags: [firewall, pfsense, preflight]
+
+- name: Créer / mettre à jour les aliases pfSense
+  pfsensible.core.pfsense_alias:
+    name: "{{ item.name }}"
+    type: "{{ item.type }}"
+    address: "{{ item.address }}"
+    descr: "{{ item.descr }}"
+    state: present
+  loop: "{{ pfsense_aliases }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: "{{ groups['firewalls'][0] }}"
+  tags: [firewall, pfsense, aliases]
+
+- name: Créer / mettre à jour les règles pfSense (matrice §3.2)
+  pfsensible.core.pfsense_rule:
+    name: "{{ item.descr }}"
+    interface: "{{ item.interface }}"
+    action: "{{ item.type }}"
+    protocol: "{{ item.protocol }}"
+    source: "{{ item.source }}"
+    destination: "{{ item.destination }}"
+    destination_port: "{{ item.destination_port | default(omit) }}"
+    log: "{{ item.log | default(false) }}"
+    state: present
+  loop: "{{ pfsense_rules }}"
+  loop_control:
+    label: "{{ item.descr }}"
+  delegate_to: "{{ groups['firewalls'][0] }}"
+  notify: reload pfsense filter
+  tags: [firewall, pfsense, rules]
+
+- name: Test smoke — nmap depuis VLAN30 vers wazuh (seul 1514/1515 attendus)
+  ansible.builtin.command:
+    cmd: nmap -Pn -p 22,80,443,1514,1515,9200,5601,55000 {{ wazuh_manager_ip }}
+  delegate_to: "{{ groups['vlan_runtime'] | first }}"
+  register: nmap_scan
+  changed_when: false
+  failed_when: false
+  tags: [firewall, pfsense, verify]
+
+- name: Assert qu'aucun port admin n'est exposé depuis VLAN 30
+  ansible.builtin.assert:
+    that:
+      - "'9200/tcp open' not in nmap_scan.stdout"
+      - "'5601/tcp open' not in nmap_scan.stdout"
+      - "'55000/tcp open' not in nmap_scan.stdout"
+      - "'1514/tcp open' in nmap_scan.stdout"
+    success_msg: "Filtre pfSense conforme à la matrice §3.2"
+    fail_msg: "DRIFT détecté sur les règles pfSense"
+  when:
+    - nmap_scan.stdout is defined
+    - groups['vlan_runtime'] | length > 0
+  tags: [firewall, pfsense, verify]

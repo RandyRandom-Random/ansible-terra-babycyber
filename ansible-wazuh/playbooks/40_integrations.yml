@@ -1,0 +1,22 @@
+---
+# 40_integrations.yml — Branchements Grafana / Vector / Authentik (v1.0 partiel)
+# Tags : integrations
+# Usage : ansible-playbook playbooks/40_integrations.yml
+
+- name: Provisionner le datasource Grafana OpenSearch
+  hosts: grafana.sec.lan
+  gather_facts: false
+  tags: [integrations, grafana]
+  roles:
+    - role: grafana_datasource
+
+# (v1.1 — différé)
+# - name: Shipper Wazuh alerts vers VictoriaLogs via Vector
+#   hosts: wazuh_server
+#   roles:
+#     - role: vector_shipper
+#
+# - name: SSO Authentik (OIDC) sur dashboard
+#   hosts: wazuh_server
+#   roles:
+#     - role: authentik_oidc

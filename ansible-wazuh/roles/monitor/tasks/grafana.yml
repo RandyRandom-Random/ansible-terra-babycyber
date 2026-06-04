@@ -1,0 +1,27 @@
+---
+# grafana.yml — Configuration Grafana (visualisation / dashboards)
+# Tags : monitor, grafana
+# Grafana lit Prometheus (datasource auto-provisionnée) et affiche
+# deux dashboards : VMs Overview et GitLab Overview.
+
+- name: Deploy Grafana datasource (auto-config Prometheus)
+  ansible.builtin.template:
+    src: grafana-datasource.yml.j2
+    dest: "{{ monitor_dir }}/grafana-provisioning/datasources/prometheus.yml"
+    mode: "0644"
+
+- name: Deploy Grafana dashboard provider
+  ansible.builtin.template:
+    src: grafana-dashboards.yml.j2
+    dest: "{{ monitor_dir }}/grafana-provisioning/dashboards/dashboards.yml"
+    mode: "0644"
+
+- name: Deploy Grafana SOC dashboards (JSON)
+  ansible.builtin.copy:
+    src: "dashboards/{{ item }}"
+    dest: "{{ monitor_dir }}/grafana-provisioning/dashboards/{{ item }}"
+    mode: "0644"
+  loop:
+    - vms-overview.json
+    - gitlab-overview.json
+  notify: restart grafana

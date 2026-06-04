@@ -1,0 +1,17 @@
+---
+# VLAN 40 — DMZ : reverse proxy public
+
+vlan_id: 40
+vlan_cidr: "192.168.40.0/24"
+vlan_gateway: "192.168.40.1"
+
+wazuh_agent_group_default: "dmz"
+wazuh_fim_mode: "realtime"
+wazuh_fim_directories:
+  - "/etc/nginx"
+  - "/etc/caddy"
+  - "/etc/ssl"
+wazuh_log_level: 3
+
+# Active response uniquement sur DMZ (v1.1)
+wazuh_active_response_enabled: false   # → true en v1.1

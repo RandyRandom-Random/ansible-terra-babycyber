@@ -1,0 +1,26 @@
+---
+# main.yml — Orchestration du rôle monitor (stack complète)
+# Découpé par responsabilité pour pouvoir déployer/expliquer chaque brique :
+#   setup       → prérequis OS + Docker + firewall          (tag: setup)
+#   prometheus  → collecte de métriques (port 9090)          (tag: prometheus)
+#   grafana     → visualisation / dashboards (port 3000)     (tag: grafana)
+#   stack       → docker compose up (Prometheus + Grafana)   (tag: stack)
+#
+# Les playbooks 50_prometheus.yml et 60_grafana.yml réutilisent ces mêmes
+# fichiers via include_role/tasks_from pour un déploiement ciblé.
+
+- name: Prérequis communs (OS + Docker + firewall)
+  ansible.builtin.import_tasks: setup.yml
+  tags: [monitor, setup]
+
+- name: Configuration Prometheus
+  ansible.builtin.import_tasks: prometheus.yml
+  tags: [monitor, prometheus]
+
+- name: Configuration Grafana
+  ansible.builtin.import_tasks: grafana.yml
+  tags: [monitor, grafana]
+
+- name: Démarrage de la stack conteneurisée
+  ansible.builtin.import_tasks: stack.yml
+  tags: [monitor, stack]

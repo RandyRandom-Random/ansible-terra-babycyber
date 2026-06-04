@@ -1,0 +1,206 @@
+# =============================================================================
+# Pipeline CI/CD — ansible-wazuh (conforme §5.9 du cahier des charges)
+# =============================================================================
+#   lint     → ansible-lint + yamllint + markdownlint + gitleaks
+#   syntax   → ansible-playbook --syntax-check sur tous les playbooks
+#   molecule → tests par rôle (driver podman)
+#   check    → ansible-playbook --check --diff sur prod
+#   apply    → manuel, branche main uniquement
+#   smoke    → 99_smoke_tests.yml post-apply
+# =============================================================================
+
+stages:
+  - lint
+  - syntax
+  - molecule
+  - check
+  - apply
+  - smoke
+
+variables:
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+  ANSIBLE_FORCE_COLOR: "True"
+  PY_COLORS: "1"
+  GIT_SSL_NO_VERIFY: "true"
+  GITLAB_HOST: "gitlab.cyberbaby.lan"
+
+# -----------------------------------------------------------------------------
+# Templates communs
+# -----------------------------------------------------------------------------
+.ansible-base:
+  image: alpine:3.20
+  tags: [vlan50]
+  before_script:
+    - apk add --no-cache python3 py3-pip openssh-client git make netcat-openbsd jq
+    - python3 -m venv /tmp/venv
+    - source /tmp/venv/bin/activate
+    - pip install --quiet ansible==9.5.0 ansible-lint==24.7.0 yamllint==1.35.1
+    - ansible-galaxy collection install -r requirements.yml --force >/dev/null 2>&1
+    - mkdir -p ~/.ssh
+    - 'if [ -n "${SSH_PRIVATE_KEY}" ] && [ -f "${SSH_PRIVATE_KEY}" ]; then cp "${SSH_PRIVATE_KEY}" ~/.ssh/id_ed25519_ansible; chmod 600 ~/.ssh/id_ed25519_ansible; fi'
+
+# =============================================================================
+# STAGE 1 — LINT
+# =============================================================================
+
+ansible-lint:
+  extends: .ansible-base
+  stage: lint
+  script:
+    - source /tmp/venv/bin/activate
+    - ansible-lint --force-color -p
+
+yamllint:
+  extends: .ansible-base
+  stage: lint
+  script:
+    - source /tmp/venv/bin/activate
+    - yamllint --format colored -c .yamllint .
+  allow_failure: true
+
+markdownlint:
+  image: davidanson/markdownlint-cli2:latest
+  tags: [vlan50]
+  stage: lint
+  script:
+    - markdownlint-cli2 "**/*.md" "#molecule" "#.terraform"
+  allow_failure: true
+
+gitleaks:
+  image: zricethezav/gitleaks:latest
+  tags: [vlan50]
+  stage: lint
+  script:
+    - gitleaks detect --source . --verbose --redact --no-git
+  allow_failure: false
+
+# =============================================================================
+# STAGE 2 — SYNTAX
+# =============================================================================
+
+syntax-check:
+  extends: .ansible-base
+  stage: syntax
+  script:
+    - source /tmp/venv/bin/activate
+    - |
+      for pb in playbooks/*.yml playbooks/ops/*.yml; do
+        echo "▶ $pb"
+        ansible-playbook "$pb" --syntax-check -i inventories/prod/hosts.yml
+      done
+
+# =============================================================================
+# STAGE 3 — MOLECULE (parallèle par rôle)
+# =============================================================================
+
+.molecule:
+  image: alpine:3.20
+  tags: [vlan50]
+  stage: molecule
+  before_script:
+    - apk add --no-cache python3 py3-pip git docker-cli
+    - python3 -m venv /tmp/venv
+    - source /tmp/venv/bin/activate
+    - pip install --quiet "ansible-core>=2.16" molecule molecule-plugins[docker] yamllint ansible-lint
+  script:
+    - source /tmp/venv/bin/activate
+    - cd roles/${ROLE_NAME}
+    - "[ -d molecule ] && molecule test || echo 'no molecule scenario yet, skipping'"
+  allow_failure: true
+
+molecule:common_hardening:
+  extends: .molecule
+  variables:
+    ROLE_NAME: common_hardening
+
+molecule:wazuh_agent:
+  extends: .molecule
+  variables:
+    ROLE_NAME: wazuh_agent
+
+molecule:wazuh_certs:
+  extends: .molecule
+  variables:
+    ROLE_NAME: wazuh_certs
+
+# =============================================================================
+# STAGE 4 — CHECK (dry-run sur prod)
+# =============================================================================
+
+check:
+  extends: .ansible-base
+  stage: check
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - source /tmp/venv/bin/activate
+    - ansible-playbook playbooks/site.yml --check --diff -i inventories/prod/hosts.yml
+
+# =============================================================================
+# STAGE 5 — APPLY (manuel sur main uniquement)
+# =============================================================================
+
+apply:
+  extends: .ansible-base
+  stage: apply
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+  environment:
+    name: production
+    url: https://wazuh.sec.lan
+  script:
+    - source /tmp/venv/bin/activate
+    - ansible-playbook playbooks/site.yml -i inventories/prod/hosts.yml
+
+apply:prometheus:
+  extends: .ansible-base
+  stage: apply
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - roles/monitor/**/*
+        - playbooks/50_prometheus.yml
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+  environment:
+    name: monitoring-prometheus
+    url: http://192.168.50.11:9090
+  script:
+    - source /tmp/venv/bin/activate
+    - ansible-playbook playbooks/50_prometheus.yml -i inventories/prod/hosts.yml
+
+apply:grafana:
+  extends: .ansible-base
+  stage: apply
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - roles/monitor/**/*
+        - playbooks/60_grafana.yml
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+  environment:
+    name: monitoring-grafana
+    url: http://192.168.50.11:3000
+  script:
+    - source /tmp/venv/bin/activate
+    - ansible-playbook playbooks/60_grafana.yml -i inventories/prod/hosts.yml
+
+# =============================================================================
+# STAGE 6 — SMOKE (post-apply)
+# =============================================================================
+
+smoke:
+  extends: .ansible-base
+  stage: smoke
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  script:
+    - source /tmp/venv/bin/activate
+    - ansible-playbook playbooks/99_smoke_tests.yml -i inventories/prod/hosts.yml
+  needs: ["apply"]

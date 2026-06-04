@@ -1,0 +1,25 @@
+---
+- name: Activer chrony (NTP)
+  ansible.builtin.systemd:
+    name: chrony
+    enabled: true
+    state: started
+
+- name: Configurer chrony pour pool europe
+  ansible.builtin.copy:
+    dest: /etc/chrony/conf.d/10-pool.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # {{ ansible_managed }}
+      pool 2.debian.pool.ntp.org iburst
+      pool fr.pool.ntp.org iburst
+      makestep 1.0 3
+      rtcsync
+      logdir /var/log/chrony
+  notify: restart chrony
+
+- name: Configurer timezone
+  ansible.builtin.command: timedatectl set-timezone {{ soc_timezone }}
+  changed_when: false

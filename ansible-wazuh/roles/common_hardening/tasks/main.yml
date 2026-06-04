@@ -1,0 +1,37 @@
+---
+- name: Inclure les tâches packages
+  ansible.builtin.include_tasks: packages.yml
+  tags: [hardening, packages]
+
+- name: Inclure les tâches sysctl
+  ansible.builtin.include_tasks: sysctl.yml
+  tags: [hardening, sysctl]
+
+- name: Inclure les tâches SSH
+  ansible.builtin.include_tasks: ssh.yml
+  tags: [hardening, ssh]
+
+- name: Inclure les tâches umask global
+  ansible.builtin.include_tasks: umask.yml
+  tags: [hardening, umask]
+
+- name: Inclure les tâches AppArmor
+  ansible.builtin.include_tasks: apparmor.yml
+  when: apparmor_enabled | bool
+  tags: [hardening, apparmor]
+
+- name: Inclure les tâches nftables
+  ansible.builtin.include_tasks: nftables.yml
+  tags: [hardening, nftables, firewall]
+
+- name: Inclure les tâches auditd CIS-L1
+  ansible.builtin.include_tasks: auditd.yml
+  tags: [hardening, auditd, audit]
+
+- name: Inclure les tâches journald
+  ansible.builtin.include_tasks: journald.yml
+  tags: [hardening, journald, logs]
+
+- name: Inclure les tâches NTP
+  ansible.builtin.include_tasks: ntp.yml
+  tags: [hardening, ntp]

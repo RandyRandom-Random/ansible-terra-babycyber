@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Infra/Sec
+  description: >
+    Création des alias et règles pfSense pour la stack Wazuh
+    (cf. §3.2 — matrice de flux du cahier des charges).
+    Toute dérive détectée en --check produit un échec CI.
+  license: MIT
+  min_ansible_version: "2.16"
+
+dependencies: []

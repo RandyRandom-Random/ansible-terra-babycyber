@@ -1,0 +1,29 @@
+---
+# 50_prometheus.yml — Déploiement de PROMETHEUS (collecte de métriques)
+# Tags : prometheus
+# Usage : ansible-playbook playbooks/50_prometheus.yml
+#
+# Prometheus interroge en continu les node_exporter des VMs (CPU, RAM, disque,
+# réseau) et stocke les séries temporelles. Il écoute sur le port 9090.
+# Étapes : prérequis OS/Docker → config de scrape → démarrage conteneur.
+
+- name: Prometheus — collecte de métriques
+  hosts: monitor
+  become: true
+  gather_facts: true
+  tags: [prometheus]
+  tasks:
+    - name: Prérequis communs (OS + Docker + firewall)
+      ansible.builtin.include_role:
+        name: monitor
+        tasks_from: setup.yml
+
+    - name: Configuration Prometheus (scrape config)
+      ansible.builtin.include_role:
+        name: monitor
+        tasks_from: prometheus.yml
+
+    - name: Démarrage de la stack conteneurisée
+      ansible.builtin.include_role:
+        name: monitor
+        tasks_from: stack.yml

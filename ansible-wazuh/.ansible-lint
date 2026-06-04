@@ -1,0 +1,24 @@
+---
+exclude_paths:
+  - .terraform/
+  - .ansible_facts_cache/
+  - collections/
+  - molecule/
+
+skip_list:
+  - role-name           # nos roles_path n'utilisent pas le préfixe galaxy
+  - schema[meta]        # metadata simplifiée
+
+warn_list:
+  - experimental
+  - command-instead-of-shell
+  - no-changed-when
+
+mock_modules:
+  - pfsensible.core.pfsense_alias
+  - pfsensible.core.pfsense_rule
+  - pfsensible.core.pfsense_filter_reload
+  - community.hashi_vault.vault_write
+  - community.hashi_vault.vault_read
+
+mock_roles: []

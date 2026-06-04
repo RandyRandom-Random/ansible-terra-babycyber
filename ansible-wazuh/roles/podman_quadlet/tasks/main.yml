@@ -1,0 +1,52 @@
+---
+- name: Activer les backports Debian (Podman ≥ 4.9 requis)
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/bookworm-backports.list
+    content: |
+      # {{ ansible_managed }}
+      deb http://deb.debian.org/debian bookworm-backports main contrib
+    owner: root
+    group: root
+    mode: "0644"
+  notify: apt update
+  tags: [podman, repo]
+
+- name: Flush handlers (apt update avant install)
+  ansible.builtin.meta: flush_handlers
+
+- name: Installer Podman depuis backports
+  ansible.builtin.apt:
+    name: "{{ podman_packages }}"
+    state: present
+    default_release: bookworm-backports
+  tags: [podman, install]
+
+- name: Vérifier la version Podman ≥ 4.9
+  ansible.builtin.command: podman --version
+  register: podman_version
+  changed_when: false
+  failed_when: false
+  tags: [podman, verify]
+
+- name: Assert Podman ≥ 4.9
+  ansible.builtin.assert:
+    that:
+      - podman_version.stdout is regex('^podman version (4\.9|4\.[1-9][0-9]|[5-9]\.)')
+    fail_msg: "Podman {{ podman_version.stdout }} — attendu ≥ 4.9"
+  tags: [podman, verify]
+
+- name: Créer le répertoire Quadlet
+  ansible.builtin.file:
+    path: "{{ quadlet_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [podman, quadlet]
+
+- name: Activer podman.socket
+  ansible.builtin.systemd:
+    name: podman.socket
+    enabled: true
+    state: started
+  tags: [podman, socket]

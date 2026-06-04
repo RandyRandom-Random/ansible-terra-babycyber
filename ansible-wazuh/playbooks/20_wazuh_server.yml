@@ -1,0 +1,50 @@
+---
+# 20_wazuh_server.yml — Provisionne la VM Wazuh complète
+# Tags : server, certs
+# Usage : ansible-playbook playbooks/20_wazuh_server.yml
+
+- name: Wazuh server — hardening + Vault + certs + stack
+  hosts: wazuh_server
+  gather_facts: true
+  vars_files:
+    - ../inventories/prod/group_vars/vault.yml
+  tags: [server]
+
+  pre_tasks:
+    - name: Charger les variables Vault (si Vault joignable)
+      ansible.builtin.set_fact:
+        vault_loaded: true
+      when: vault_addr is defined
+      tags: [always]
+
+  roles:
+    - role: common_hardening
+      tags: [hardening]
+
+    - role: vault_integration
+      tags: [vault]
+      when: vault_addr is defined
+
+    - role: wazuh_certs
+      tags: [certs]
+
+    - role: podman_quadlet
+      tags: [podman]
+      when: runtime_engine == "podman"
+
+    - role: wazuh_server
+      tags: [server, wazuh]
+
+  post_tasks:
+    - name: Healthcheck final
+      ansible.builtin.uri:
+        url: "https://{{ wazuh_manager_ip }}/"
+        method: GET
+        validate_certs: false
+        status_code: [200, 302]
+      delegate_to: localhost
+      retries: 12
+      delay: 10
+      register: dash_ready
+      until: dash_ready.status in [200, 302]
+      tags: [verify]

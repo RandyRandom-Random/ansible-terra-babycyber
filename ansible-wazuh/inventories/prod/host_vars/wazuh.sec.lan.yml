@@ -1,0 +1,16 @@
+---
+# Overrides spécifiques à la VM Wazuh manager
+
+# Dimensionnement (§3.3)
+vm_vcpu: 4
+vm_ram_gb: 8
+vm_disk_gb: 100
+
+# Quadlet units à déployer
+quadlet_units:
+  - wazuh-indexer
+  - wazuh-manager
+  - wazuh-dashboard
+
+# Auto-monitoring : l'hôte est aussi son propre agent (groupe infra-critical)
+wazuh_self_agent: true

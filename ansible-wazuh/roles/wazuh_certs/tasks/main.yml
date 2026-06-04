@@ -1,0 +1,142 @@
+---
+# ─── 1. Préparation ───────────────────────────────────────────
+- name: Créer le répertoire certs
+  ansible.builtin.file:
+    path: "{{ certs_dir }}"
+    state: directory
+    owner: "{{ certs_owner }}"
+    group: "{{ certs_group }}"
+    mode: "0750"
+  tags: [certs]
+
+# ─── 2. Root CA (idempotent — généré une seule fois) ──────────
+- name: Vérifier si la root CA existe
+  ansible.builtin.stat:
+    path: "{{ certs_dir }}/root-ca.pem"
+  register: root_ca_stat
+  tags: [certs, ca]
+
+- name: Générer la clef privée root CA (4096 bits, RSA)
+  community.crypto.openssl_privatekey:
+    path: "{{ certs_dir }}/root-ca-key.pem"
+    size: "{{ ca_key_size }}"
+    type: RSA
+    mode: "0600"
+  when: not root_ca_stat.stat.exists
+  tags: [certs, ca]
+
+- name: Générer le CSR root CA
+  community.crypto.openssl_csr:
+    path: "{{ certs_dir }}/root-ca.csr"
+    privatekey_path: "{{ certs_dir }}/root-ca-key.pem"
+    common_name: "{{ ca_common_name }}"
+    country_name: "{{ ca_country }}"
+    organization_name: "{{ ca_organization }}"
+    basic_constraints: ["CA:TRUE"]
+    basic_constraints_critical: true
+    key_usage: ["keyCertSign", "cRLSign", "digitalSignature"]
+    key_usage_critical: true
+  when: not root_ca_stat.stat.exists
+  tags: [certs, ca]
+
+- name: Signer la root CA (self-signed, 5 ans)
+  community.crypto.x509_certificate:
+    path: "{{ certs_dir }}/root-ca.pem"
+    csr_path: "{{ certs_dir }}/root-ca.csr"
+    privatekey_path: "{{ certs_dir }}/root-ca-key.pem"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ ca_validity_days }}d"
+    selfsigned_digest: sha256
+    mode: "0644"
+  when: not root_ca_stat.stat.exists
+  tags: [certs, ca]
+
+# ─── 3. Certificats feuilles avec rotation auto J-30 ──────────
+- name: Inspecter chaque certificat feuille
+  community.crypto.x509_certificate_info:
+    path: "{{ certs_dir }}/{{ item.name }}.pem"
+    valid_at:
+      threshold: "+{{ leaf_renew_threshold_days }}d"
+  loop: "{{ leaf_common_names }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: leaf_cert_info
+  failed_when: false
+  tags: [certs, leaves, rotation]
+
+- name: Construire la liste des certificats à (re)générer
+  ansible.builtin.set_fact:
+    certs_to_renew: >-
+      {{ leaf_cert_info.results
+         | selectattr('failed', 'defined')
+         | selectattr('failed', 'equalto', false)
+         | rejectattr('valid_at', 'undefined')
+         | rejectattr('valid_at.threshold', 'equalto', true)
+         | map(attribute='item') | list
+         + leaf_cert_info.results
+             | selectattr('failed', 'equalto', true)
+             | map(attribute='item') | list }}
+  tags: [certs, leaves, rotation]
+
+- name: Afficher les certs à renouveler
+  ansible.builtin.debug:
+    msg: "Certificats à renouveler (expirent < J-{{ leaf_renew_threshold_days }}): {{ certs_to_renew | map(attribute='name') | list }}"
+  tags: [certs, leaves, rotation]
+
+- name: Générer la clef privée feuille
+  community.crypto.openssl_privatekey:
+    path: "{{ certs_dir }}/{{ item.name }}-key.pem"
+    size: "{{ leaf_key_size }}"
+    type: RSA
+    mode: "0600"
+  loop: "{{ certs_to_renew }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [certs, leaves, rotation]
+
+- name: Générer le CSR feuille
+  community.crypto.openssl_csr:
+    path: "{{ certs_dir }}/{{ item.name }}.csr"
+    privatekey_path: "{{ certs_dir }}/{{ item.name }}-key.pem"
+    common_name: "{{ item.name }}"
+    country_name: "{{ ca_country }}"
+    organization_name: "{{ ca_organization }}"
+    subject_alt_name: "{{ item.san }}"
+    key_usage: ["digitalSignature", "keyEncipherment"]
+    extended_key_usage: ["serverAuth", "clientAuth"]
+  loop: "{{ certs_to_renew }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [certs, leaves, rotation]
+
+- name: Signer le cert feuille avec la root CA
+  community.crypto.x509_certificate:
+    path: "{{ certs_dir }}/{{ item.name }}.pem"
+    csr_path: "{{ certs_dir }}/{{ item.name }}.csr"
+    ownca_path: "{{ certs_dir }}/root-ca.pem"
+    ownca_privatekey_path: "{{ certs_dir }}/root-ca-key.pem"
+    provider: ownca
+    ownca_not_after: "+{{ leaf_validity_days }}d"
+    ownca_digest: sha256
+    mode: "0644"
+  loop: "{{ certs_to_renew }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: restart wazuh stack
+  tags: [certs, leaves, rotation]
+
+# ─── 4. Stocker la clef root dans Vault (séparation) ──────────
+- name: Sauvegarder la clef privée root CA dans Vault
+  community.hashi_vault.vault_write:
+    url: "{{ vault_addr }}"
+    path: "{{ vault_secret_base }}/certs/root-key"
+    data:
+      data:
+        key: "{{ lookup('file', certs_dir + '/root-ca-key.pem') }}"
+        stored_at: "{{ ansible_date_time.iso8601 }}"
+  delegate_to: localhost
+  no_log: true
+  when:
+    - not root_ca_stat.stat.exists
+    - vault_addr is defined
+  tags: [certs, ca, vault]

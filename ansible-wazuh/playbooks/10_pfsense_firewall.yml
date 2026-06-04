@@ -1,0 +1,12 @@
+---
+# 10_pfsense_firewall.yml — Crée les aliases + règles pfSense (§3.2)
+# Tags : firewall
+# Usage : ansible-playbook playbooks/10_pfsense_firewall.yml --tags firewall
+
+- name: pfSense — aliases et règles de filtrage
+  hosts: firewalls
+  gather_facts: false
+  tags: [firewall, pfsense]
+
+  roles:
+    - role: pfsense_rules

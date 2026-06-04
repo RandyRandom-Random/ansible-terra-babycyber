@@ -1,0 +1,11 @@
+---
+# VLAN 50 — SEC : Wazuh, Grafana, observabilité
+
+vlan_id: 50
+vlan_cidr: "192.168.50.0/24"
+vlan_gateway: "192.168.50.1"
+
+# Politique agent (auto-monitoring du SIEM lui-même)
+wazuh_agent_group_default: "infra-critical"
+wazuh_fim_mode: "realtime"
+wazuh_log_level: 2

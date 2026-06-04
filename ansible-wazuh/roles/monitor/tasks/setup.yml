@@ -1,0 +1,90 @@
+---
+# setup.yml — Prérequis communs (OS + Docker + firewall + arborescence)
+# Tags : monitor, setup
+# Cette étape est partagée par Prometheus ET Grafana : elle prépare la VM
+# avant de déployer l'un ou l'autre.
+
+- name: Set system timezone
+  ansible.builtin.command:
+    cmd: timedatectl set-timezone {{ soc_timezone }}
+  changed_when: false
+
+- name: Enable CRB repository (AlmaLinux 10)
+  ansible.builtin.command:
+    cmd: dnf config-manager --set-enabled crb
+  changed_when: false
+
+- name: Force fallback DNS for Docker pulls
+  ansible.builtin.lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver 8.8.8.8"
+    insertbefore: BOF
+    state: present
+
+- name: Install base packages
+  ansible.builtin.command:
+    cmd: dnf install -y curl wget git unzip firewalld python3 tar
+  changed_when: true
+
+- name: Ensure firewalld is started
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when: soc_manage_firewalld | bool
+
+# Cockpit (panneau admin Linux) écoute par défaut sur 9090 — collide avec Prometheus
+- name: Stop and disable cockpit.socket (conflit port 9090 avec Prometheus)
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - cockpit.socket
+    - cockpit
+  failed_when: false
+
+- name: Open Monitoring ports in firewalld
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "3000/tcp"   # Grafana
+    - "9090/tcp"   # Prometheus
+    - "9100/tcp"   # Node Exporter
+  when: soc_manage_firewalld | bool
+
+- name: Add Docker CE repository
+  ansible.builtin.command:
+    cmd: dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+  changed_when: false
+
+- name: Install Docker CE
+  ansible.builtin.command:
+    cmd: dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  changed_when: true
+
+- name: Enable and start Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create monitor directory
+  ansible.builtin.file:
+    path: "{{ monitor_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Grafana provisioning subdirs
+  ansible.builtin.file:
+    path: "{{ monitor_dir }}/grafana-provisioning/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - datasources
+    - dashboards

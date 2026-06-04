@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Infra/Sec
+  description: >
+    Génération et rotation des certificats Wazuh (indexer, manager, dashboard).
+    mTLS root interne (5 ans, 4096 bits), feuilles 1 an avec rotation auto à J-30
+    (§5.7 et §7.3 du cahier des charges).
+  license: MIT
+  min_ansible_version: "2.16"
+
+dependencies: []

@@ -1,0 +1,42 @@
+---
+# Variables globales — partagées par tous les hôtes (cf. §5.3 du cahier)
+
+# ─── Connexion SSH ────────────────────────────────────────────
+ansible_user: admin_ansible
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519_ansible
+ansible_python_interpreter: /usr/bin/python3
+
+# ─── Réseau ───────────────────────────────────────────────────
+wazuh_manager_fqdn: wazuh.sec.lan
+wazuh_manager_ip: 192.168.50.10
+soc_timezone: Europe/Paris
+
+# ─── Wazuh (général) ──────────────────────────────────────────
+wazuh_version: "4.12.0"
+wazuh_repo_arch: "amd64"
+wazuh_agent_port: 1514
+wazuh_enrollment_port: 1515
+wazuh_dashboard_port: 443
+wazuh_api_port: 55000
+wazuh_indexer_port: 9200
+
+# ─── Stack runtime ────────────────────────────────────────────
+# Cible cahier des charges : Podman + Quadlet (§4.1)
+# Etat actuel du lab : Docker Compose (en attente de migration v1.0)
+runtime_engine: "docker"   # → "podman" après migration
+
+# ─── Paths ────────────────────────────────────────────────────
+wazuh_root_dir: /opt/wazuh
+wazuh_config_dir: /etc/wazuh
+wazuh_data_dir: /var/lib/wazuh
+quadlet_dir: /etc/containers/systemd
+
+# ─── Vault (intégration) ──────────────────────────────────────
+vault_addr: "https://vault.infra.lan:8200"
+vault_role_name: "wazuh-runtime"
+vault_secret_base: "secret/wazuh"
+
+# ─── Observabilité ────────────────────────────────────────────
+grafana_url: "https://grafana.sec.lan:3000"
+victorialogs_url: "https://victorialogs.sec.lan:9428"
+victoriametrics_url: "https://victoriametrics.sec.lan:8428"

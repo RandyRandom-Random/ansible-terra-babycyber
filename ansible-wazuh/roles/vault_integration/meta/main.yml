@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Infra/Sec
+  description: >
+    Intégration HashiCorp Vault sur la VM Wazuh (cf. §7.1 et §8.1).
+    Configure : AppRole, Vault Agent en sidecar systemd-unit qui renouvelle
+    les leases et templatise les EnvironmentFile consommés par les units Quadlet.
+  license: MIT
+  min_ansible_version: "2.16"
+
+dependencies: []

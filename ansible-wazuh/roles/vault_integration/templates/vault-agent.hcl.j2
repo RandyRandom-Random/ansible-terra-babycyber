@@ -1,0 +1,51 @@
+# {{ ansible_managed }}
+# Vault Agent — VM Wazuh
+# Doc : https://developer.hashicorp.com/vault/docs/agent
+
+pid_file = "/run/vault-agent.pid"
+
+vault {
+  address     = "{{ vault_addr }}"
+  ca_cert     = "{{ vault_ca_cert }}"
+  retry { num_retries = 5 }
+}
+
+auto_auth {
+  method "approle" {
+    config = {
+      role_id_file_path                   = "{{ vault_role_id_file }}"
+      secret_id_file_path                 = "{{ vault_agent_config_dir }}/secret-id-wrapped"
+      remove_secret_id_file_after_reading = true
+    }
+  }
+
+  sink "file" {
+    config = {
+      path = "{{ vault_agent_config_dir }}/.vault-token"
+    }
+  }
+}
+
+cache {
+  use_auto_auth_token = true
+}
+
+api_proxy {
+  use_auto_auth_token = true
+}
+
+# Sink HTTP local pour les clients CLI éventuels
+listener "tcp" {
+  address     = "127.0.0.1:8100"
+  tls_disable = true
+}
+
+# ─── Templates : génère les EnvironmentFile à partir de Vault ───────
+{% for env in vault_env_files %}
+template {
+  source      = "{{ vault_agent_template_dir }}/{{ env.name }}.ctmpl"
+  destination = "{{ vault_agent_output_dir }}/{{ env.name }}"
+  perms       = "0600"
+  command     = "systemctl reload-or-restart wazuh-{{ env.name | replace('-env.env','') | replace('.env','') }} 2>/dev/null || true"
+}
+{% endfor %}

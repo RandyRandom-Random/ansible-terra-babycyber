@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: Infra/Sec
+  description: >
+    Installation et configuration de l'agent Wazuh sur Debian 12.
+    Enrollment automatique via authd (mot de passe partagé via Vault).
+    Groupes Wazuh assignés selon le VLAN (§6.1 du cahier des charges).
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+
+dependencies: []

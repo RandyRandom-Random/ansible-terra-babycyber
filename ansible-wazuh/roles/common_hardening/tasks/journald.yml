@@ -1,0 +1,18 @@
+---
+- name: Configurer journald (persistance, compression, taille max)
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/10-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # {{ ansible_managed }}
+      [Journal]
+      Storage=persistent
+      Compress=yes
+      ForwardToSyslog=yes
+      SystemMaxUse=2G
+      SystemKeepFree=500M
+      SystemMaxFileSize=200M
+      MaxRetentionSec=30day
+  notify: restart journald

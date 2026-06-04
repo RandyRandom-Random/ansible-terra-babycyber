@@ -1,0 +1,97 @@
+---
+- name: Pré-requis — paquets de support
+  ansible.builtin.apt:
+    name:
+      - curl
+      - gnupg
+      - apt-transport-https
+      - ca-certificates
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [agent, prereqs]
+
+- name: Ajouter la clef GPG du repo Wazuh
+  ansible.builtin.get_url:
+    url: "{{ wazuh_repo_key_url }}"
+    dest: /usr/share/keyrings/wazuh.gpg
+    mode: "0644"
+    force: false
+  tags: [agent, repo]
+
+- name: Ajouter le repo APT Wazuh
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/wazuh.list
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # {{ ansible_managed }}
+      deb [signed-by=/usr/share/keyrings/wazuh.gpg] {{ wazuh_repo_url }} {{ wazuh_repo_distribution }} {{ wazuh_repo_components }}
+  notify: apt update
+  tags: [agent, repo]
+
+- name: Flush handlers (apt update avant install)
+  ansible.builtin.meta: flush_handlers
+
+- name: Vérifier si l'agent est déjà installé
+  ansible.builtin.stat:
+    path: /var/ossec/bin/wazuh-control
+  register: wazuh_agent_bin
+  tags: [agent, install]
+
+- name: Vérifier le mot de passe d'enrollment
+  ansible.builtin.assert:
+    that:
+      - wazuh_enrollment_password | length > 0
+    fail_msg: >
+      wazuh_enrollment_password est vide. Il doit être injecté depuis Vault
+      (cf. group_vars/vault.yml et rôle vault_integration).
+  when: not wazuh_agent_bin.stat.exists
+  tags: [agent, install]
+
+- name: Installer le paquet wazuh-agent (avec enrollment)
+  ansible.builtin.apt:
+    name: "wazuh-agent={{ wazuh_version }}-1"
+    state: present
+  environment:
+    WAZUH_MANAGER: "{{ wazuh_manager_ip }}"
+    WAZUH_REGISTRATION_SERVER: "{{ wazuh_manager_ip }}"
+    WAZUH_REGISTRATION_PASSWORD: "{{ wazuh_enrollment_password }}"
+    WAZUH_AGENT_NAME: "{{ wazuh_agent_name }}"
+    WAZUH_AGENT_GROUP: "{{ wazuh_agent_group_default }}"
+  no_log: true
+  tags: [agent, install]
+
+- name: Templater /var/ossec/etc/ossec.conf
+  ansible.builtin.template:
+    src: ossec.conf.j2
+    dest: /var/ossec/etc/ossec.conf
+    owner: root
+    group: wazuh
+    mode: "0640"
+    validate: "/var/ossec/bin/wazuh-agentd -t -c %s"
+  notify: restart wazuh-agent
+  tags: [agent, config]
+
+- name: Re-bascule de groupe sans réenrollment
+  ansible.builtin.command:
+    cmd: /var/ossec/bin/agent_groups -a -i {{ wazuh_agent_name }} -g {{ wazuh_agent_group_default }} -q
+  when: wazuh_agent_bin.stat.exists
+  changed_when: true
+  failed_when: false
+  tags: [agent, group]
+
+- name: Activer + démarrer le service
+  ansible.builtin.systemd:
+    name: wazuh-agent
+    enabled: true
+    state: started
+  tags: [agent, service]
+
+- name: Vérification de connectivité au manager
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_manager_ip }}"
+    port: "{{ wazuh_agent_port }}"
+    timeout: 10
+  tags: [agent, verify]

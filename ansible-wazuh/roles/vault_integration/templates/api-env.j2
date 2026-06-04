@@ -1,0 +1,4 @@
+{{ '{{' }} with secret "{{ vault_secret_base }}/api" {{ '}}' }}
+API_USERNAME=wazuh-wui
+API_PASSWORD={{ '{{' }} .Data.data.password {{ '}}' }}
+{{ '{{' }} end {{ '}}' }}

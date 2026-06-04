@@ -1,0 +1,14 @@
+---
+# VLAN 30 — RUNTIME : Podman engine, fullstack app
+
+vlan_id: 30
+vlan_cidr: "192.168.30.0/24"
+vlan_gateway: "192.168.30.1"
+
+wazuh_agent_group_default: "runtime"
+wazuh_fim_mode: "scheduled"
+wazuh_fim_frequency: 43200    # 12h
+wazuh_fim_directories:
+  - "/etc"
+  - "/var/lib/containers"
+wazuh_log_level: 2

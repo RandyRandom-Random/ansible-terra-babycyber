@@ -1,0 +1,14 @@
+*.retry
+*.pyc
+__pycache__/
+.vault_pass
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!secrets.tfvars.example
+.terraform.lock.hcl
+*.log
+terraform/plan.cache
+terraform/plan.json
+terraform/outputs.json

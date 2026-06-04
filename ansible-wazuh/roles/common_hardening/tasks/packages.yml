@@ -1,0 +1,35 @@
+---
+- name: Mettre à jour le cache APT
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Installer les paquets de base hardening
+  ansible.builtin.apt:
+    name:
+      - sudo
+      - openssh-server
+      - nftables
+      - auditd
+      - apparmor
+      - apparmor-utils
+      - libpam-tmpdir
+      - libpam-cracklib
+      - chrony
+      - rsyslog
+      - unattended-upgrades
+      - apt-listchanges
+      - python3-apt
+    state: present
+
+- name: Supprimer les paquets superflus / dangereux
+  ansible.builtin.apt:
+    name:
+      - telnetd
+      - rsh-server
+      - nis
+      - ypserv
+      - tftpd
+      - xinetd
+    state: absent
+    purge: true

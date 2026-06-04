@@ -1,0 +1,3 @@
+{{ '{{' }} with secret "{{ vault_secret_base }}/enrollment" {{ '}}' }}
+WAZUH_ENROLLMENT_PASSWORD={{ '{{' }} .Data.data.password {{ '}}' }}
+{{ '{{' }} end {{ '}}' }}

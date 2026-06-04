@@ -1,0 +1,4 @@
+---
+- name: reload pfsense filter
+  pfsensible.core.pfsense_filter_reload:
+  delegate_to: "{{ groups['firewalls'][0] }}"

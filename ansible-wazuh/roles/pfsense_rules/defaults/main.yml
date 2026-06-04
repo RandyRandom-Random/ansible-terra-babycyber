@@ -1,0 +1,103 @@
+---
+# Endpoint
+pfsense_api_url: "https://192.168.10.254"
+pfsense_api_verify_ssl: false
+pfsense_api_token: ""    # ← injecté par Vault
+
+# ─── Aliases ──────────────────────────────────────────────────
+pfsense_aliases:
+  - name: WAZUH_SERVER
+    type: host
+    address: "{{ wazuh_manager_ip | default('192.168.50.10') }}"
+    descr: "Wazuh manager FQDN: wazuh.sec.lan"
+  - name: VLAN_MGMT_NET
+    type: network
+    address: "192.168.10.0/24"
+    descr: "VLAN 10 - MGMT"
+  - name: VLAN_INFRA_NET
+    type: network
+    address: "192.168.20.0/24"
+    descr: "VLAN 20 - INFRA"
+  - name: VLAN_RUNTIME_NET
+    type: network
+    address: "192.168.30.0/24"
+    descr: "VLAN 30 - RUNTIME"
+  - name: VLAN_DMZ_NET
+    type: network
+    address: "192.168.40.0/24"
+    descr: "VLAN 40 - DMZ"
+  - name: VLAN_SEC_NET
+    type: network
+    address: "192.168.50.0/24"
+    descr: "VLAN 50 - SEC"
+  - name: WAZUH_AGENT_PORTS
+    type: port
+    address: "1514 1515"
+    descr: "Ports agents Wazuh (TCP)"
+  - name: WAZUH_ADMIN_PORTS
+    type: port
+    address: "443 55000"
+    descr: "Ports admin Wazuh (Dashboard + API)"
+
+# ─── Matrice de flux (§3.2) ───────────────────────────────────
+pfsense_rules:
+  # Agents → manager
+  - descr: "Agents INFRA → Wazuh manager"
+    interface: VLAN_INFRA
+    type: pass
+    protocol: tcp
+    source: "VLAN_INFRA_NET"
+    destination: "WAZUH_SERVER"
+    destination_port: "WAZUH_AGENT_PORTS"
+
+  - descr: "Agents RUNTIME → Wazuh manager"
+    interface: VLAN_RUNTIME
+    type: pass
+    protocol: tcp
+    source: "VLAN_RUNTIME_NET"
+    destination: "WAZUH_SERVER"
+    destination_port: "WAZUH_AGENT_PORTS"
+
+  - descr: "Agents DMZ → Wazuh manager"
+    interface: VLAN_DMZ
+    type: pass
+    protocol: tcp
+    source: "VLAN_DMZ_NET"
+    destination: "WAZUH_SERVER"
+    destination_port: "WAZUH_AGENT_PORTS"
+
+  # pfSense lui-même → manager
+  - descr: "pfSense self → Wazuh manager (agent + syslog)"
+    interface: LAN
+    type: pass
+    protocol: tcp
+    source: "this firewall"
+    destination: "WAZUH_SERVER"
+    destination_port: "1514"
+
+  - descr: "pfSense self → Wazuh syslog UDP"
+    interface: LAN
+    type: pass
+    protocol: udp
+    source: "this firewall"
+    destination: "WAZUH_SERVER"
+    destination_port: "514"
+
+  # Admin
+  - descr: "MGMT → Wazuh dashboard + API"
+    interface: VLAN_MGMT
+    type: pass
+    protocol: tcp
+    source: "VLAN_MGMT_NET"
+    destination: "WAZUH_SERVER"
+    destination_port: "WAZUH_ADMIN_PORTS"
+
+  # Deny all everything else avec log
+  - descr: "Block + log tout autre flux vers Wazuh (any)"
+    interface: any
+    type: block
+    log: true
+    protocol: tcp
+    source: any
+    destination: "WAZUH_SERVER"
+    destination_port: "9200 5601 55000"

@@ -1,0 +1,60 @@
+---
+# ops/restore.yml — Restauration depuis backup (§9.2)
+# Tags : restore
+# Usage : ansible-playbook playbooks/ops/restore.yml -e backup_file=/var/backups/wazuh/wazuh-20260319T120000.tar.gz
+
+- name: Restore Wazuh — depuis backup tar
+  hosts: wazuh_server
+  gather_facts: true
+  tags: [restore]
+
+  vars:
+    backup_file: "{{ backup_file | mandatory }}"
+
+  tasks:
+    - name: Vérifier que le fichier de backup existe
+      ansible.builtin.stat:
+        path: "{{ backup_file }}"
+      register: backup_stat
+
+    - name: Fail si pas trouvé
+      ansible.builtin.fail:
+        msg: "Backup introuvable : {{ backup_file }}"
+      when: not backup_stat.stat.exists
+
+    - name: Stopper la stack
+      ansible.builtin.command:
+        cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} compose -f /opt/wazuh-docker/single-node/docker-compose.yml down"
+      changed_when: true
+
+    - name: Sauvegarder l'état actuel (avant restore) au cas où
+      community.general.archive:
+        path:
+          - /var/lib/docker/volumes/single-node_wazuh_indexer_data
+          - /var/lib/docker/volumes/single-node_wazuh_api_configuration
+        dest: "/var/backups/wazuh/pre-restore-{{ ansible_date_time.iso8601_basic_short }}.tar.gz"
+        format: gz
+        mode: "0600"
+
+    - name: Extraire le backup
+      ansible.builtin.unarchive:
+        src: "{{ backup_file }}"
+        dest: /
+        remote_src: true
+
+    - name: Redémarrer la stack
+      ansible.builtin.command:
+        cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} compose -f /opt/wazuh-docker/single-node/docker-compose.yml up -d"
+      changed_when: true
+
+    - name: Attendre que l'indexer redevienne green
+      ansible.builtin.uri:
+        url: "https://localhost:9200/_cluster/health"
+        user: admin
+        password: "{{ vault_wazuh_indexer_admin_password | default('SecretPassword') }}"
+        force_basic_auth: true
+        validate_certs: false
+      register: idx_health
+      retries: 30
+      delay: 10
+      until: idx_health.json.status in ['green', 'yellow']

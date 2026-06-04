@@ -1,0 +1,11 @@
+---
+# VLAN 10 — MGMT : Proxmox + pfSense
+# Aucun agent Wazuh sur Proxmox (exclu §2.3).
+# pfSense est traité en v1.1 (agent FreeBSD différé).
+
+vlan_id: 10
+vlan_cidr: "192.168.10.0/24"
+vlan_gateway: "192.168.10.254"
+
+wazuh_agent_group_default: "network"
+wazuh_log_level: 2

@@ -1,0 +1,53 @@
+---
+# ─── SSH hardening ─────────────────────────────────────────────
+ssh_permit_root_login: "no"
+ssh_password_authentication: "no"
+ssh_x11_forwarding: "no"
+ssh_max_auth_tries: 3
+ssh_client_alive_interval: 300
+ssh_client_alive_count_max: 2
+ssh_login_grace_time: 30
+ssh_allowed_users: ["admin_ansible"]
+
+# ─── Sysctl ───────────────────────────────────────────────────
+sysctl_settings:
+  # Hardening réseau
+  net.ipv4.ip_forward: 0
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.default.accept_source_route: 0
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.conf.all.rp_filter: 1
+  net.ipv4.tcp_syncookies: 1
+  net.ipv4.icmp_echo_ignore_broadcasts: 1
+  net.ipv4.icmp_ignore_bogus_error_responses: 1
+  # IPv6
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_source_route: 0
+  # Kernel
+  kernel.randomize_va_space: 2
+  kernel.dmesg_restrict: 1
+  kernel.kptr_restrict: 2
+  kernel.yama.ptrace_scope: 1
+  fs.suid_dumpable: 0
+  # vm.max_map_count (requis par OpenSearch / indexer Wazuh)
+  vm.max_map_count: 262144
+
+# ─── nftables ─────────────────────────────────────────────────
+# Politique par défaut : DROP partout sauf SSH + ports applicatifs.
+# Les ports applicatifs sont définis par le rôle appelant via la var
+# `host_allowed_ports` (cf. wazuh_server, wazuh_agent).
+host_allowed_ports: []   # liste de {port, proto, source} ; ex: [{port: 1514, proto: tcp, source: "192.168.20.0/24"}]
+
+# ─── auditd ───────────────────────────────────────────────────
+auditd_max_log_file_mb: 50
+auditd_num_logs: 10
+auditd_disk_full_action: "SYSLOG"
+
+# ─── AppArmor / umask ─────────────────────────────────────────
+apparmor_enabled: true
+umask_global: "027"

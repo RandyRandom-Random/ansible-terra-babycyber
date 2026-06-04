@@ -1,0 +1,94 @@
+<!--
+  {{ ansible_managed }}
+  Config agent Wazuh — généré par Ansible (rôle wazuh_agent)
+  Profil VLAN: {{ wazuh_agent_group_default }}
+-->
+<ossec_config>
+
+  <client>
+    <server>
+      <address>{{ wazuh_manager_ip }}</address>
+      <port>{{ wazuh_agent_port }}</port>
+      <protocol>tcp</protocol>
+    </server>
+    <config-profile>{{ wazuh_agent_group_default }}</config-profile>
+    <notify_time>10</notify_time>
+    <time-reconnect>60</time-reconnect>
+    <auto_restart>yes</auto_restart>
+    <crypto_method>aes</crypto_method>
+    <enrollment>
+      <enabled>yes</enabled>
+      <manager_address>{{ wazuh_manager_ip }}</manager_address>
+      <port>{{ wazuh_enrollment_port }}</port>
+      <agent_name>{{ wazuh_agent_name }}</agent_name>
+      <groups>{{ wazuh_agent_group_default }}</groups>
+    </enrollment>
+  </client>
+
+  <client_buffer>
+    <disabled>no</disabled>
+    <queue_size>5000</queue_size>
+    <events_per_second>500</events_per_second>
+  </client_buffer>
+
+  <!-- ─── FIM ─────────────────────────────────────────────── -->
+  <syscheck>
+    <disabled>no</disabled>
+    <frequency>{{ wazuh_fim_frequency }}</frequency>
+    <scan_on_start>yes</scan_on_start>
+    <alert_new_files>yes</alert_new_files>
+
+{% for dir in wazuh_fim_directories %}
+    <directories check_all="yes"{% if wazuh_fim_mode == 'realtime' %} realtime="yes"{% endif %} report_changes="yes">{{ dir }}</directories>
+{% endfor %}
+
+{% for ign in wazuh_fim_ignore %}
+    <ignore>{{ ign }}</ignore>
+{% endfor %}
+
+    <nodiff>/etc/ssl/private.key</nodiff>
+    <skip_nfs>yes</skip_nfs>
+  </syscheck>
+
+  <!-- ─── SCA ─────────────────────────────────────────────── -->
+  <sca>
+    <enabled>{{ 'yes' if wazuh_sca_enabled else 'no' }}</enabled>
+    <scan_on_start>yes</scan_on_start>
+    <interval>{{ wazuh_sca_interval }}</interval>
+    <skip_nfs>yes</skip_nfs>
+  </sca>
+
+  <!-- ─── Rootcheck ───────────────────────────────────────── -->
+  <rootcheck>
+    <disabled>no</disabled>
+    <frequency>43200</frequency>
+    <check_unixaudit>yes</check_unixaudit>
+    <check_files>yes</check_files>
+    <check_trojans>yes</check_trojans>
+    <check_dev>yes</check_dev>
+    <check_sys>yes</check_sys>
+    <check_pids>yes</check_pids>
+    <check_ports>yes</check_ports>
+    <check_if>yes</check_if>
+  </rootcheck>
+
+  <!-- ─── Logcollector ─────────────────────────────────────── -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/auth.log</location>
+  </localfile>
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/syslog</location>
+  </localfile>
+  <localfile>
+    <log_format>audit</log_format>
+    <location>/var/log/audit/audit.log</location>
+  </localfile>
+
+  <!-- ─── Logging ─────────────────────────────────────────── -->
+  <logging>
+    <log_format>plain</log_format>
+  </logging>
+
+</ossec_config>

@@ -1,0 +1,20 @@
+---
+- name: restart wazuh indexer
+  ansible.builtin.command:
+    cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} restart single-node-wazuh.indexer-1"
+  changed_when: true
+
+- name: restart wazuh manager
+  ansible.builtin.command:
+    cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} restart single-node-wazuh.manager-1"
+  changed_when: true
+
+- name: restart wazuh dashboard
+  ansible.builtin.command:
+    cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} restart single-node-wazuh.dashboard-1"
+  changed_when: true
+
+- name: restart wazuh stack
+  ansible.builtin.command:
+    cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} compose -f /opt/wazuh-docker/single-node/docker-compose.yml restart"
+  changed_when: true

@@ -1,0 +1,37 @@
+---
+# 00_preflight.yml — Vérifie que l'inventaire répond et que les VMs sont prêtes
+# Tags : preflight (non destructif)
+# Usage : ansible-playbook playbooks/00_preflight.yml
+
+- name: Preflight — ping + facts de tous les hôtes
+  hosts: all
+  gather_facts: true
+  any_errors_fatal: false
+  tags: [preflight]
+
+  tasks:
+    - name: Ping ICMP
+      ansible.builtin.ping:
+
+    - name: Vérifier la version OS attendue (Debian 12)
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Debian"
+          - ansible_distribution_major_version == "12"
+        success_msg: "{{ inventory_hostname }} : Debian 12 ✓"
+        fail_msg: "{{ inventory_hostname }} : OS non conforme ({{ ansible_distribution }} {{ ansible_distribution_version }}) — attendu Debian 12"
+      when: inventory_hostname not in groups['firewalls'] | default([])
+
+    - name: "Vérifier RAM minimum (wazuh_server : 8 GB)"
+      ansible.builtin.assert:
+        that:
+          - ansible_memtotal_mb >= 7500
+        fail_msg: "RAM insuffisante : {{ ansible_memtotal_mb }} MB (attendu ≥ 8 GB)"
+      when: inventory_hostname in groups['wazuh_server'] | default([])
+
+    - name: Vérifier disponibilité disque (≥ 80 GB libre sur wazuh_server)
+      ansible.builtin.assert:
+        that:
+          - (ansible_mounts | selectattr('mount', 'equalto', '/') | first).size_available > 80 * 1024 * 1024 * 1024
+        fail_msg: "Disque insuffisant sur /"
+      when: inventory_hostname in groups['wazuh_server'] | default([])

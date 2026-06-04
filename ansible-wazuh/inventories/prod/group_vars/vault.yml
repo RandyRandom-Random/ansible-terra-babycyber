@@ -1,0 +1,23 @@
+---
+# Variables sensibles — DOIT être chiffré avec ansible-vault (§5.3, §7.1).
+#
+# Pour chiffrer ce fichier :
+#   ansible-vault encrypt inventories/prod/group_vars/vault.yml
+#
+# Pour éditer :
+#   ansible-vault edit inventories/prod/group_vars/vault.yml
+#
+# La clé ansible-vault est stockée dans HashiCorp Vault (path: secret/ci/ansible-vault)
+# et injectée dans le runner GitLab via JWT auth.
+
+# Placeholders (à remplacer après chiffrement) :
+vault_wazuh_indexer_admin_password: "{{ lookup('community.hashi_vault.hashi_vault', vault_secret_base + '/indexer/admin:password') | default('CHANGEME_AT_FIRST_DEPLOY', true) }}"
+vault_wazuh_api_password: "{{ lookup('community.hashi_vault.hashi_vault', vault_secret_base + '/api:password') | default('CHANGEME_AT_FIRST_DEPLOY', true) }}"
+vault_wazuh_enrollment_password: "{{ lookup('community.hashi_vault.hashi_vault', vault_secret_base + '/enrollment:password') | default('CHANGEME_AT_FIRST_DEPLOY', true) }}"
+
+# Token API pfSense
+vault_pfsense_api_token: "{{ lookup('community.hashi_vault.hashi_vault', 'secret/pfsense/api:token') }}"
+
+# AppRole Vault pour la VM Wazuh
+vault_approle_role_id: "{{ lookup('env', 'WAZUH_VAULT_ROLE_ID') }}"
+vault_approle_secret_id: "{{ lookup('env', 'WAZUH_VAULT_SECRET_ID') }}"

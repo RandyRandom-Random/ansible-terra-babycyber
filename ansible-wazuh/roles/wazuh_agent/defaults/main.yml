@@ -1,0 +1,43 @@
+---
+# Defaults — override par group_vars/vlan_*.yml ou host_vars
+
+wazuh_version: "4.12.0"
+wazuh_repo_key_url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+wazuh_repo_url: "https://packages.wazuh.com/4.x/apt/"
+wazuh_repo_components: "main"
+wazuh_repo_distribution: "stable"
+
+# Manager / enrollment
+wazuh_manager_fqdn: "wazuh.sec.lan"
+wazuh_manager_ip: "192.168.50.10"
+wazuh_agent_port: 1514
+wazuh_enrollment_port: 1515
+
+# Identité
+wazuh_agent_name: "{{ inventory_hostname_short }}"
+wazuh_agent_group_default: "default"
+
+# FIM
+wazuh_fim_mode: "scheduled"          # realtime | scheduled
+wazuh_fim_frequency: 43200           # 12h en secondes
+wazuh_fim_directories:
+  - "/etc"
+  - "/usr/bin"
+  - "/usr/sbin"
+wazuh_fim_ignore:
+  - "/etc/mtab"
+  - "/etc/hosts.deny"
+  - "/etc/resolv.conf"
+
+# SCA
+wazuh_sca_enabled: true
+wazuh_sca_interval: 43200
+
+# Vulnerability detection
+wazuh_vuln_enabled: true
+
+# Log level
+wazuh_log_level: 2
+
+# Enrollment password (passé via Vault, jamais persisté sur disque)
+wazuh_enrollment_password: ""

@@ -1,0 +1,12 @@
+---
+# site.yml — Orchestration complète du déploiement v1.0
+# Usage : ansible-playbook playbooks/site.yml
+
+- import_playbook: 00_preflight.yml
+- import_playbook: 10_pfsense_firewall.yml
+- import_playbook: 20_wazuh_server.yml
+- import_playbook: 30_wazuh_agents.yml
+- import_playbook: 40_integrations.yml
+- import_playbook: 50_prometheus.yml
+- import_playbook: 60_grafana.yml
+- import_playbook: 99_smoke_tests.yml

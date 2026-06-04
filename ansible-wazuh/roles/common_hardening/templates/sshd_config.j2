@@ -1,0 +1,49 @@
+{{ ansible_managed | comment }}
+
+# ─── Connexion ────────────────────────────────────────────────
+Port 22
+AddressFamily inet
+Protocol 2
+
+# ─── Authentification ─────────────────────────────────────────
+PermitRootLogin {{ ssh_permit_root_login }}
+PasswordAuthentication {{ ssh_password_authentication }}
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+UsePAM yes
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+
+MaxAuthTries {{ ssh_max_auth_tries }}
+MaxSessions 4
+LoginGraceTime {{ ssh_login_grace_time }}
+ClientAliveInterval {{ ssh_client_alive_interval }}
+ClientAliveCountMax {{ ssh_client_alive_count_max }}
+
+AllowUsers {{ ssh_allowed_users | join(' ') }}
+
+# ─── Sécurité ─────────────────────────────────────────────────
+X11Forwarding {{ ssh_x11_forwarding }}
+AllowAgentForwarding no
+AllowTcpForwarding no
+GatewayPorts no
+PermitUserEnvironment no
+StrictModes yes
+IgnoreRhosts yes
+HostbasedAuthentication no
+
+# ─── Crypto (cf. Mozilla SSH guidelines intermediate) ─────────
+KexAlgorithms curve25519-sha256@libssh.org,curve25519-sha256,diffie-hellman-group-exchange-sha256
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes128-ctr
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+
+# ─── Logging ──────────────────────────────────────────────────
+SyslogFacility AUTH
+LogLevel VERBOSE
+
+# ─── Bannière ─────────────────────────────────────────────────
+Banner /etc/issue.net
+PrintMotd no
+
+Subsystem sftp /usr/lib/openssh/sftp-server

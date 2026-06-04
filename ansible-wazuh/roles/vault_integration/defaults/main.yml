@@ -1,0 +1,36 @@
+---
+# ─── Vault ────────────────────────────────────────────────────
+vault_addr: "https://vault.infra.lan:8200"
+vault_ca_cert: "/etc/ssl/certs/vault-ca.crt"
+
+# AppRole — la VM Wazuh s'authentifie ainsi
+vault_role_name: "wazuh-runtime"
+vault_role_id_file: "/etc/vault-agent/role-id"
+vault_secret_id_wrapped: "{{ vault_approle_secret_id | default('') }}"
+
+# Paths Vault à templatiser
+vault_secret_base: "secret/wazuh"
+
+# Vault Agent
+vault_agent_user: vault
+vault_agent_config_dir: /etc/vault-agent
+vault_agent_template_dir: /etc/vault-agent/templates
+vault_agent_output_dir: /etc/wazuh/secrets
+
+# Policy à associer à la role
+vault_policies:
+  - name: wazuh-runtime
+    rules: |
+      path "secret/data/wazuh/*" { capabilities = ["read"] }
+      path "secret/data/wazuh/certs/*" { capabilities = ["read"] }
+      path "auth/token/renew-self" { capabilities = ["update"] }
+      path "auth/token/lookup-self" { capabilities = ["read"] }
+
+# EnvironmentFile à générer (consommés par Quadlet)
+vault_env_files:
+  - name: wazuh-indexer.env
+    template: indexer-env.j2
+  - name: wazuh-api.env
+    template: api-env.j2
+  - name: wazuh-enrollment.env
+    template: enrollment-env.j2

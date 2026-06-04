@@ -1,0 +1,70 @@
+---
+# ops/backup.yml — Backup volumes + configs Wazuh (§9.1)
+# Tags : backup
+# Usage : ansible-playbook playbooks/ops/backup.yml
+
+- name: Backup Wazuh — snapshot Proxmox + dump volumes
+  hosts: wazuh_server
+  gather_facts: true
+  tags: [backup]
+
+  vars:
+    backup_dir: "/var/backups/wazuh"
+    backup_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+    backup_retention_days: 30
+
+  tasks:
+    - name: Créer le répertoire de backup
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Stopper la stack Wazuh proprement (consistance des volumes)
+      ansible.builtin.command:
+        cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} compose -f /opt/wazuh-docker/single-node/docker-compose.yml stop"
+      changed_when: true
+
+    - name: Tar des volumes
+      community.general.archive:
+        path:
+          - /var/lib/docker/volumes/single-node_wazuh_indexer_data
+          - /var/lib/docker/volumes/single-node_wazuh_api_configuration
+          - /var/lib/docker/volumes/single-node_wazuh_etc
+          - /var/lib/docker/volumes/single-node_wazuh_logs
+          - /var/lib/docker/volumes/single-node_wazuh_queue
+          - /etc/wazuh
+        dest: "{{ backup_dir }}/wazuh-{{ backup_timestamp }}.tar.gz"
+        format: gz
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Redémarrer la stack Wazuh
+      ansible.builtin.command:
+        cmd: "{{ 'podman' if runtime_engine == 'podman' else 'docker' }} compose -f /opt/wazuh-docker/single-node/docker-compose.yml start"
+      changed_when: true
+
+    - name: Purger les vieux backups (rétention {{ backup_retention_days }}j)
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        patterns: "wazuh-*.tar.gz"
+        age: "{{ backup_retention_days }}d"
+      register: old_backups
+
+    - name: Supprimer les vieux backups
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+
+    - name: Snapshot Proxmox (via SSH au node)
+      ansible.builtin.command:
+        cmd: "qm snapshot 107 wazuh-{{ backup_timestamp }} --description 'auto by ansible'"
+      delegate_to: proxmox.mgmt.lan
+      changed_when: true
+      failed_when: false   # snapshot non bloquant

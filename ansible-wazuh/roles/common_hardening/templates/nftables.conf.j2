@@ -1,0 +1,42 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# nftables policy : deny-by-default
+
+flush ruleset
+
+table inet filter {
+
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        # Connexions établies
+        ct state established,related accept
+        ct state invalid drop
+
+        # Loopback
+        iifname "lo" accept
+
+        # ICMP utile
+        ip protocol icmp icmp type { echo-request, destination-unreachable, time-exceeded } accept
+        ip6 nexthdr ipv6-icmp icmpv6 type { echo-request, destination-unreachable, time-exceeded, packet-too-big, parameter-problem, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+
+        # SSH (depuis la zone MGMT)
+        tcp dport 22 ip saddr 192.168.10.0/24 accept
+
+        # Ports applicatifs (passés par la var host_allowed_ports)
+{% for rule in host_allowed_ports %}
+        {{ rule.proto }} dport {{ rule.port }}{% if rule.source is defined %} ip saddr {{ rule.source }}{% endif %} accept comment "{{ rule.comment | default('app port') }}"
+{% endfor %}
+
+        # Tout le reste : drop + log (CIS-style)
+        log prefix "nft-drop-in: " level info limit rate 5/minute drop
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}

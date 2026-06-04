@@ -1,0 +1,7 @@
+---
+wazuh_version: "v4.10.0"
+wazuh_dir: "/opt/wazuh-docker"
+wazuh_admin_password: "SecretPassword1!"
+wazuh_kibana_password: "kibanaPassword1!"
+soc_timezone: "Europe/Paris"
+soc_manage_firewalld: true

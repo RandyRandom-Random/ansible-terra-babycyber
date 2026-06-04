@@ -1,0 +1,9 @@
+---
+# Podman + Quadlet (cf. §4.1 du cahier des charges)
+podman_packages:
+  - podman
+  - podman-compose
+  - skopeo
+  - buildah
+quadlet_dir: /etc/containers/systemd
+podman_user: root   # rootful (single-node, justifié par §4.1)

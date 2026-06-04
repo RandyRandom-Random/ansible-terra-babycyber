@@ -1,0 +1,18 @@
+---
+# VLAN 20 — INFRA : Vault, K3s, GitLab, Nexus, Authentik
+
+vlan_id: 20
+vlan_cidr: "192.168.20.0/24"
+vlan_gateway: "192.168.20.1"
+
+# Agents Wazuh : groupe par défaut pour cette zone
+wazuh_agent_group_default: "infra-critical"
+wazuh_fim_mode: "realtime"
+wazuh_fim_directories:
+  - "/etc"
+  - "/root"
+  - "/var/lib/vault"
+  - "/var/lib/gitlab"
+  - "/var/lib/authentik"
+wazuh_sca_enabled: true
+wazuh_log_level: 3

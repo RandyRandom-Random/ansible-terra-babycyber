@@ -1,0 +1,159 @@
+---
+- name: Installer Vault Agent
+  ansible.builtin.apt:
+    name: vault
+    state: present
+    update_cache: true
+  tags: [vault, install]
+
+- name: Créer l'utilisateur vault (si pas créé par le paquet)
+  ansible.builtin.user:
+    name: "{{ vault_agent_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/vault
+    create_home: true
+  tags: [vault, user]
+
+- name: Créer les répertoires Vault Agent
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ vault_agent_user }}"
+    group: "{{ vault_agent_user }}"
+    mode: "0750"
+  loop:
+    - "{{ vault_agent_config_dir }}"
+    - "{{ vault_agent_template_dir }}"
+    - "{{ vault_agent_output_dir }}"
+  tags: [vault, dirs]
+
+- name: Configurer les policies Vault depuis le runner
+  community.hashi_vault.vault_write:
+    url: "{{ vault_addr }}"
+    path: "sys/policies/acl/{{ item.name }}"
+    data:
+      policy: "{{ item.rules }}"
+  loop: "{{ vault_policies }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  run_once: true
+  tags: [vault, policies]
+
+- name: Activer la méthode d'auth AppRole (si pas déjà)
+  community.hashi_vault.vault_write:
+    url: "{{ vault_addr }}"
+    path: "sys/auth/approle"
+    data:
+      type: approle
+  delegate_to: localhost
+  run_once: true
+  failed_when: false
+  tags: [vault, auth]
+
+- name: Créer/Update le rôle AppRole wazuh-runtime
+  community.hashi_vault.vault_write:
+    url: "{{ vault_addr }}"
+    path: "auth/approle/role/{{ vault_role_name }}"
+    data:
+      token_policies: ["{{ vault_role_name }}"]
+      token_ttl: "1h"
+      token_max_ttl: "24h"
+      bind_secret_id: true
+      secret_id_num_uses: 0
+      secret_id_ttl: "0"
+  delegate_to: localhost
+  run_once: true
+  tags: [vault, approle]
+
+- name: Récupérer le role-id
+  community.hashi_vault.vault_read:
+    url: "{{ vault_addr }}"
+    path: "auth/approle/role/{{ vault_role_name }}/role-id"
+  register: approle_role_id
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+  tags: [vault, approle]
+
+- name: Déposer le role-id sur la VM Wazuh
+  ansible.builtin.copy:
+    content: "{{ approle_role_id.data.data.role_id }}"
+    dest: "{{ vault_role_id_file }}"
+    owner: "{{ vault_agent_user }}"
+    group: "{{ vault_agent_user }}"
+    mode: "0400"
+  no_log: true
+  tags: [vault, approle]
+
+- name: Déposer le secret-id wrapped (cloud-init / one-shot)
+  ansible.builtin.copy:
+    content: "{{ vault_secret_id_wrapped }}"
+    dest: "{{ vault_agent_config_dir }}/secret-id-wrapped"
+    owner: "{{ vault_agent_user }}"
+    group: "{{ vault_agent_user }}"
+    mode: "0400"
+  when: vault_secret_id_wrapped | length > 0
+  no_log: true
+  tags: [vault, approle]
+
+- name: Templater la config Vault Agent
+  ansible.builtin.template:
+    src: vault-agent.hcl.j2
+    dest: "{{ vault_agent_config_dir }}/agent.hcl"
+    owner: "{{ vault_agent_user }}"
+    group: "{{ vault_agent_user }}"
+    mode: "0640"
+  notify: restart vault-agent
+  tags: [vault, config]
+
+- name: Templater les fichiers .ctmpl (consul-template format)
+  ansible.builtin.template:
+    src: "{{ item.template }}"
+    dest: "{{ vault_agent_template_dir }}/{{ item.name }}.ctmpl"
+    owner: "{{ vault_agent_user }}"
+    group: "{{ vault_agent_user }}"
+    mode: "0640"
+  loop: "{{ vault_env_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: restart vault-agent
+  tags: [vault, templates]
+
+- name: Déployer l'unit systemd vault-agent
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/vault-agent.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # {{ ansible_managed }}
+      [Unit]
+      Description=HashiCorp Vault Agent
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User={{ vault_agent_user }}
+      Group={{ vault_agent_user }}
+      ExecStart=/usr/bin/vault agent -config={{ vault_agent_config_dir }}/agent.hcl
+      Restart=on-failure
+      RestartSec=10
+      LimitNOFILE=65536
+      AmbientCapabilities=CAP_IPC_LOCK
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - reload systemd
+    - restart vault-agent
+  tags: [vault, systemd]
+
+- name: Activer + démarrer vault-agent
+  ansible.builtin.systemd:
+    name: vault-agent
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [vault, service]

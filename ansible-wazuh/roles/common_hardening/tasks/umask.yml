@@ -1,0 +1,20 @@
+---
+- name: Forcer umask 027 dans /etc/login.defs
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^UMASK'
+    line: "UMASK   {{ umask_global }}"
+    state: present
+
+- name: Forcer umask 027 dans /etc/profile
+  ansible.builtin.lineinfile:
+    path: /etc/profile
+    regexp: '^umask'
+    line: "umask {{ umask_global }}"
+    state: present
+
+- name: Forcer umask 027 pour les sessions PAM
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session optional pam_umask.so umask={{ umask_global }}"
+    state: present

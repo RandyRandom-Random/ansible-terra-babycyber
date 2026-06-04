@@ -1,0 +1,35 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: SSHd refuse les password
+      ansible.builtin.command: sshd -T
+      register: sshd_config
+      changed_when: false
+
+    - name: Assert no password auth
+      ansible.builtin.assert:
+        that:
+          - "'passwordauthentication no' in sshd_config.stdout"
+          - "'permitrootlogin no' in sshd_config.stdout"
+
+    - name: Sysctl vm.max_map_count = 262144
+      ansible.builtin.command: sysctl -n vm.max_map_count
+      register: max_map
+      changed_when: false
+
+    - name: Assert sysctl
+      ansible.builtin.assert:
+        that:
+          - max_map.stdout | int >= 262144
+
+    - name: nftables actif
+      ansible.builtin.command: systemctl is-active nftables
+      register: nft
+      changed_when: false
+
+    - name: Assert nftables
+      ansible.builtin.assert:
+        that:
+          - nft.stdout == "active"

@@ -1,0 +1,4 @@
+{{ '{{' }} with secret "{{ vault_secret_base }}/indexer/admin" {{ '}}' }}
+INDEXER_USERNAME=admin
+INDEXER_PASSWORD={{ '{{' }} .Data.data.password {{ '}}' }}
+{{ '{{' }} end {{ '}}' }}

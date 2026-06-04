@@ -1,0 +1,8 @@
+---
+monitor_dir: "/opt/monitor"
+grafana_admin_user: "admin"
+grafana_admin_password: "GrafanaAdmin1!"
+wazuh_target_ip: "192.168.50.10"
+prometheus_retention: "30d"
+soc_timezone: "Europe/Paris"
+soc_manage_firewalld: true

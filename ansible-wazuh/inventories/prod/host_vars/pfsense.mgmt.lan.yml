@@ -1,0 +1,16 @@
+---
+# Overrides spécifiques à pfSense
+
+# Connexion : pfSense ne supporte pas python natif → utiliser pfsensible.core
+ansible_python_interpreter: /usr/local/bin/python3
+ansible_user: admin
+# Le mot de passe vient de Vault au runtime
+# ansible_ssh_pass: vault → cf. group_vars/vault.yml
+
+# Endpoint API
+pfsense_api_url: "https://192.168.10.254"
+pfsense_api_port: 443
+pfsense_api_verify_ssl: false   # cert interne, on l'accepte ici
+
+# Restrictions API
+pfsense_api_allowed_source: "192.168.10.0/24"
