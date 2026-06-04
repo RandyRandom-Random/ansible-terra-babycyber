@@ -1,0 +1,14 @@
+---
+# deploy-monitoring.yml — Déploie toute l'observabilité en une commande
+# Usage : ansible-playbook playbooks/deploy-monitoring.yml
+#
+# Enchaîne dans le bon ordre :
+#   45 → node_exporter sur tous les agents (exposent le port 9100)
+#   50 → Prometheus scrape tous les agents (VM prometheus.sec.lan)
+#   60 → Grafana + dashboards (VM grafana.sec.lan)
+#
+# Résultat : tous les agents remontent dans le dashboard "VMs Overview".
+
+- import_playbook: 45_node_exporter.yml
+- import_playbook: 50_prometheus.yml
+- import_playbook: 60_grafana.yml
